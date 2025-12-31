@@ -71,6 +71,7 @@ export interface FireflyTransactionSplit {
     source_name?: string;
     destination_id?: string;
     destination_name?: string;
+    tags?: string[];
 }
 
 export interface FireflyCategory {
@@ -78,6 +79,11 @@ export interface FireflyCategory {
     name: string;
     spent?: { sum: string; currency_code: string }[];
     earned?: { sum: string; currency_code: string }[];
+}
+
+export interface FireflyTag {
+    id: string;
+    tag: string;
 }
 
 export interface FireflySearchResult {
@@ -108,12 +114,14 @@ export interface QueryTransactionsInput {
     filters?: {
         category_name?: string;
         text_contains?: string;
+        tag?: string;
+        transaction_type?: "withdrawal" | "deposit" | "transfer";
         min_amount?: number;
         max_amount?: number;
     };
     aggregate?: {
         kind: "sum" | "count" | "avg";
-        group_by?: "category" | "month";
+        group_by?: "category" | "month" | "week" | "day" | "merchant" | "tag";
     };
     limit?: number;
 }

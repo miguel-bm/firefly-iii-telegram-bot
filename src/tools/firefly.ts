@@ -3,6 +3,7 @@ import type {
     FireflyCategory,
     FireflySearchResult,
     CreateTransactionInput,
+    FireflyTag,
 } from "../types.js";
 
 export class FireflyClient {
@@ -45,6 +46,17 @@ export class FireflyClient {
         return response.data.map((c) => ({
             id: c.id,
             name: c.attributes.name,
+        }));
+    }
+
+    async getTags(): Promise<FireflyTag[]> {
+        interface TagsResponse {
+            data: { id: string; attributes: { tag: string } }[];
+        }
+        const response = await this.request<TagsResponse>("/tags?limit=100");
+        return response.data.map((t) => ({
+            id: t.id,
+            tag: t.attributes.tag,
         }));
     }
 
@@ -182,17 +194,77 @@ export class FireflyClient {
         return response;
     }
 
-    // Get asset accounts for report links
-    async getAssetAccounts(): Promise<{ id: string; name: string }[]> {
+    // Get all accounts with balances
+    async getAccounts(type?: "asset" | "expense" | "revenue" | "liability"): Promise<AccountInfo[]> {
         interface AccountsResponse {
-            data: { id: string; attributes: { name: string; type: string } }[];
+            data: {
+                id: string;
+                attributes: {
+                    name: string;
+                    type: string;
+                    current_balance: string;
+                    current_balance_date: string;
+                    currency_code: string;
+                    active: boolean;
+                };
+            }[];
         }
-        const params = new URLSearchParams({ type: "asset", limit: "100" });
+        const params = new URLSearchParams({ limit: "100" });
+        if (type) params.set("type", type);
         const response = await this.request<AccountsResponse>(`/accounts?${params}`);
-        return response.data.map((a) => ({
-            id: a.id,
-            name: a.attributes.name,
-        }));
+        return response.data
+            .filter((a) => a.attributes.active)
+            .map((a) => ({
+                id: a.id,
+                name: a.attributes.name,
+                type: a.attributes.type,
+                current_balance: parseFloat(a.attributes.current_balance),
+                currency_code: a.attributes.currency_code,
+            }));
+    }
+
+    // Get asset accounts for report links (simplified)
+    async getAssetAccounts(): Promise<{ id: string; name: string }[]> {
+        const accounts = await this.getAccounts("asset");
+        return accounts.map((a) => ({ id: a.id, name: a.name }));
+    }
+
+    // Get account balance history (chart data)
+    async getAccountHistory(
+        accountId: string,
+        start: string,
+        end: string,
+        period: "1D" | "1W" | "1M" | "1Y" = "1D"
+    ): Promise<AccountBalancePoint[]> {
+        interface ChartResponse {
+            label: string;
+            currency_code: string;
+            entries: Record<string, string>; // date -> balance
+        }
+
+        // Firefly chart endpoint - uses query params
+        const params = new URLSearchParams({
+            start,
+            end,
+            period,
+            "accounts[]": accountId,
+        });
+        const response = await this.request<ChartResponse[]>(
+            `/chart/account/overview?${params}`
+        );
+
+        // Find the matching account data
+        const accountData = response[0];
+        if (!accountData) return [];
+
+        // Convert entries object to array of points
+        // Dates come as ISO datetime (e.g., "2025-01-01T00:00:00+01:00") - extract just YYYY-MM-DD
+        return Object.entries(accountData.entries)
+            .map(([dateStr, balance]) => ({
+                date: dateStr.slice(0, 10), // Extract YYYY-MM-DD from ISO datetime
+                balance: parseFloat(balance),
+            }))
+            .sort((a, b) => a.date.localeCompare(b.date));
     }
 
     getReportUrl(reportType: string, accountIds: string[], start: string, end: string): string {
@@ -223,6 +295,19 @@ export interface BasicSummaryEntry {
     currency_code: string;
 }
 
+export interface AccountInfo {
+    id: string;
+    name: string;
+    type: string;
+    current_balance: number;
+    currency_code: string;
+}
+
+export interface AccountBalancePoint {
+    date: string;
+    balance: number;
+}
+
 // Cache categories in KV with TTL
 export async function getCachedCategories(
     env: Env
@@ -241,6 +326,31 @@ export async function getCachedCategories(
     });
 
     return categories;
+}
+
+// Cache tags in KV with TTL, filtering out import tags
+export async function getCachedTags(
+    env: Env
+): Promise<string[]> {
+    const cached = await env.CATEGORY_CACHE.get("tags", "json");
+    if (cached) {
+        return cached as string[];
+    }
+
+    const client = new FireflyClient(env);
+    const tags = await client.getTags();
+
+    // Filter out "Data Import on*" tags and return just tag names
+    const filteredTags = tags
+        .filter((t) => !t.tag.startsWith("Data Import on"))
+        .map((t) => t.tag);
+
+    // Cache for 6 hours
+    await env.CATEGORY_CACHE.put("tags", JSON.stringify(filteredTags), {
+        expirationTtl: 6 * 60 * 60,
+    });
+
+    return filteredTags;
 }
 
 // Cache asset account IDs in KV with TTL
@@ -262,5 +372,26 @@ export async function getCachedAssetAccountIds(
     });
 
     return accountIds;
+}
+
+// Cache asset accounts (id + name) for context
+export async function getCachedAssetAccounts(
+    env: Env
+): Promise<{ id: string; name: string }[]> {
+    const cached = await env.CATEGORY_CACHE.get("asset_accounts", "json");
+    if (cached) {
+        return cached as { id: string; name: string }[];
+    }
+
+    const client = new FireflyClient(env);
+    const accounts = await client.getAccounts("asset");
+    const simplified = accounts.map((a) => ({ id: a.id, name: a.name }));
+
+    // Cache for 6 hours
+    await env.CATEGORY_CACHE.put("asset_accounts", JSON.stringify(simplified), {
+        expirationTtl: 6 * 60 * 60,
+    });
+
+    return simplified;
 }
 

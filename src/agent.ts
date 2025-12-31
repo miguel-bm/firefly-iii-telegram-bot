@@ -8,9 +8,9 @@ import type {
     QueryTransactionsInput,
     AgentResponse,
 } from "./types.js";
-import { FireflyClient, getCachedCategories, getCachedAssetAccountIds } from "./tools/firefly.js";
-import { aggregateTransactions, formatAggregateResult } from "./query/aggregate.js";
-import { buildExpenseByCategoryChart } from "./tools/charts.js";
+import { FireflyClient, getCachedCategories, getCachedAssetAccountIds, getCachedTags, getCachedAssetAccounts } from "./tools/firefly.js";
+import { aggregateTransactions, formatAggregateResult, type GroupByOption } from "./query/aggregate.js";
+import { buildChartConfig, generateQuickChartUrl } from "./tools/charts.js";
 
 const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     {
@@ -50,7 +50,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         function: {
             name: "firefly_query_transactions",
             description:
-                "Search and aggregate transactions from Firefly III. Use for questions about spending, summaries, or finding specific transactions.",
+                "Search, aggregate, and optionally chart transactions from Firefly III. Use for questions about spending, summaries, finding transactions, or generating charts. Text search is substring matching (not fuzzy). Set chart_type to get a visual chart instead of text.",
             strict: true,
             parameters: {
                 type: "object",
@@ -65,28 +65,46 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                     },
                     category_name: {
                         type: ["string", "null"],
-                        description: "Filter by category name. Use null to include all categories.",
+                        description: "Filter by category name. Must match exactly from available categories. Use null to include all.",
                     },
                     text_contains: {
                         type: ["string", "null"],
-                        description: "Search text in transaction descriptions. Use null for no text filter.",
+                        description: "Substring search in transaction descriptions (case-insensitive, NOT fuzzy). Use null for no text filter.",
+                    },
+                    tag: {
+                        type: ["string", "null"],
+                        description: "Filter by tag name. Must match exactly from available tags. Use null to include all.",
+                    },
+                    transaction_type: {
+                        type: ["string", "null"],
+                        enum: ["withdrawal", "deposit", "transfer", null],
+                        description: "Filter by transaction type. Use null to include all types.",
                     },
                     aggregate_kind: {
                         type: ["string", "null"],
                         enum: ["sum", "count", "avg", null],
-                        description: "Type of aggregation to perform. Use null to return raw transactions.",
+                        description: "Type of aggregation to perform. Required if chart_type is set. Use null to return raw transactions.",
                     },
                     aggregate_group_by: {
                         type: ["string", "null"],
-                        enum: ["category", "month", null],
-                        description: "How to group the aggregation results. Use null for no grouping.",
+                        enum: ["category", "month", "week", "day", "merchant", "tag", null],
+                        description: "How to group results. Required if chart_type is set. 'month'=YYYY-MM, 'week'=YYYY-Wnn, 'day'=YYYY-MM-DD, 'merchant'=destination name, 'tag'=by tag.",
+                    },
+                    chart_type: {
+                        type: ["string", "null"],
+                        enum: ["pie", "bar", "line", "doughnut", null],
+                        description: "If set, returns a chart URL instead of text. Requires aggregate_kind and aggregate_group_by. Use pie/doughnut for category breakdown, bar for comparisons over time, line for trends.",
+                    },
+                    chart_title: {
+                        type: ["string", "null"],
+                        description: "Title for the chart. Use null for auto-generated title. Only used when chart_type is set.",
                     },
                     limit: {
                         type: ["number", "null"],
-                        description: "Maximum number of transactions to return. Use null for default (10).",
+                        description: "Maximum transactions to fetch. Default 100. Use higher for comprehensive queries.",
                     },
                 },
-                required: ["date_from", "date_to", "category_name", "text_contains", "aggregate_kind", "aggregate_group_by", "limit"],
+                required: ["date_from", "date_to", "category_name", "text_contains", "tag", "transaction_type", "aggregate_kind", "aggregate_group_by", "chart_type", "chart_title", "limit"],
                 additionalProperties: false,
             },
         },
@@ -94,37 +112,37 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     {
         type: "function",
         function: {
-            name: "firefly_generate_chart",
+            name: "generate_chart",
             description:
-                "Generate a visual chart of financial data. Use when user asks for a graph, chart, or visual representation of their finances.",
+                "Generate a chart from manually provided data points. Use when you need to combine data from multiple queries, apply custom labels, or chart non-Firefly data. For single queries, prefer using firefly_query_transactions with chart_type instead.",
             strict: true,
             parameters: {
                 type: "object",
                 properties: {
                     chart_type: {
                         type: "string",
-                        enum: ["pie", "bar", "doughnut"],
-                        description: "Type of chart. Pie/doughnut for category breakdown, bar for comparisons.",
-                    },
-                    data_source: {
-                        type: "string",
-                        enum: ["expense_by_category", "income_by_category"],
-                        description: "What data to visualize.",
-                    },
-                    date_from: {
-                        type: "string",
-                        description: "Start date (YYYY-MM-DD).",
-                    },
-                    date_to: {
-                        type: "string",
-                        description: "End date (YYYY-MM-DD).",
+                        enum: ["pie", "bar", "line", "doughnut"],
+                        description: "Type of chart. Pie/doughnut for proportions, bar for comparisons, line for trends.",
                     },
                     title: {
-                        type: ["string", "null"],
-                        description: "Chart title. Use null for auto-generated title.",
+                        type: "string",
+                        description: "Chart title.",
+                    },
+                    data_points: {
+                        type: "array",
+                        items: {
+                            type: "object",
+                            properties: {
+                                label: { type: "string", description: "Label for this data point (e.g., category name, month)." },
+                                value: { type: "number", description: "Numeric value for this data point." },
+                            },
+                            required: ["label", "value"],
+                            additionalProperties: false,
+                        },
+                        description: "Array of data points to chart. Each point has a label and numeric value.",
                     },
                 },
-                required: ["chart_type", "data_source", "date_from", "date_to", "title"],
+                required: ["chart_type", "title", "data_points"],
                 additionalProperties: false,
             },
         },
@@ -158,12 +176,76 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
             },
         },
     },
+    {
+        type: "function",
+        function: {
+            name: "firefly_get_accounts",
+            description:
+                "Get a list of accounts with their current balances. Use for questions about account balances, net worth, or to find account IDs for history queries.",
+            strict: true,
+            parameters: {
+                type: "object",
+                properties: {
+                    account_type: {
+                        type: ["string", "null"],
+                        enum: ["asset", "expense", "revenue", "liability", null],
+                        description: "Filter by account type. Use 'asset' for bank accounts, savings, cash. Use null to get all types.",
+                    },
+                },
+                required: ["account_type"],
+                additionalProperties: false,
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "firefly_get_account_history",
+            description:
+                "Get balance history for a specific account over time. Use for net worth trends, savings progress, or balance charts. Can return text or chart.",
+            strict: true,
+            parameters: {
+                type: "object",
+                properties: {
+                    account_id: {
+                        type: "string",
+                        description: "The account ID. Get this from firefly_get_accounts or use one from available accounts in context.",
+                    },
+                    date_from: {
+                        type: "string",
+                        description: "Start date (YYYY-MM-DD).",
+                    },
+                    date_to: {
+                        type: "string",
+                        description: "End date (YYYY-MM-DD).",
+                    },
+                    period: {
+                        type: "string",
+                        enum: ["1D", "1W", "1M", "1Y"],
+                        description: "Data granularity: 1D=daily, 1W=weekly, 1M=monthly, 1Y=yearly. Use 1D for short ranges (weeks), 1W for months, 1M for years.",
+                    },
+                    chart_type: {
+                        type: ["string", "null"],
+                        enum: ["line", "bar", null],
+                        description: "If set, returns a chart URL. 'line' for trends, 'bar' for comparisons. Use null for text data.",
+                    },
+                    chart_title: {
+                        type: ["string", "null"],
+                        description: "Title for the chart. Use null for auto-generated. Only used when chart_type is set.",
+                    },
+                },
+                required: ["account_id", "date_from", "date_to", "period", "chart_type", "chart_title"],
+                additionalProperties: false,
+            },
+        },
+    },
 ];
 
 const SYSTEM_PROMPTS = {
-    es: (categories: string[], currency: string, timezone: string) => {
+    es: (categories: string[], tags: string[], accounts: { id: string; name: string }[], currency: string, timezone: string) => {
         const now = new Date().toLocaleString("es-ES", { timeZone: timezone });
         const today = new Date().toLocaleDateString("en-CA", { timeZone: timezone }); // YYYY-MM-DD format
+        const accountsList = accounts.map((a) => `${a.name} (id: ${a.id})`).join(", ");
         return `Eres un asistente financiero para registrar gastos e ingresos en Firefly III.
 
 Fecha y hora actual: ${now}
@@ -171,6 +253,8 @@ Fecha de hoy (para transacciones): ${today}
 Moneda por defecto: ${currency}
 
 Categorías disponibles: ${categories.join(", ")}
+Etiquetas (tags) disponibles: ${tags.length > 0 ? tags.join(", ") : "(ninguna)"}
+Cuentas disponibles: ${accountsList}
 
 COMPORTAMIENTOS IMPORTANTES:
 1. Interpreta los mensajes del usuario como solicitudes de transacciones por defecto. Por ejemplo, "103 en compras en Mercadona" debe interpretarse como una transacción de retiro/gasto.
@@ -201,14 +285,26 @@ NOTA SOBRE TRANSACCIONES:
 - Usa tu conocimiento para identificar comercios conocidos y escribir sus nombres correctamente.
 
 GRÁFICOS Y REPORTES:
-- Si el usuario pide un gráfico, chart, o visualización, usa la herramienta firefly_generate_chart.
-- Si el usuario pide un informe completo o detallado, o la consulta es muy compleja, usa firefly_report_link para dar un enlace.
+- Para gráficos de transacciones, usa firefly_query_transactions con chart_type (pie, bar, line, doughnut). Requiere aggregate_kind y aggregate_group_by.
+- Ejemplo: gastos por categoría este mes → chart_type="pie", aggregate_kind="sum", aggregate_group_by="category"
+- Ejemplo: tendencia de gastos por semana → chart_type="line", aggregate_kind="sum", aggregate_group_by="week"
+- Para datos combinados o personalizados, usa generate_chart con data_points manuales.
+- Si el usuario pide un informe completo o detallado, usa firefly_report_link para dar un enlace.
 - Cuando generes un gráfico, responde con: "📊 Aquí tienes el gráfico:" seguido del gráfico.
-- Cuando des un enlace a informe, responde con: "🔗 [Ver informe completo](URL)"`;
+- Cuando des un enlace a informe, responde con: "🔗 [Ver informe completo](URL)"
+
+CUENTAS Y BALANCES:
+- Para ver saldos actuales de cuentas, usa firefly_get_accounts.
+- Para ver la evolución del saldo de una cuenta, usa firefly_get_account_history con el account_id de la lista de cuentas disponibles.
+- Usa el parámetro period para la granularidad: 1D=diario, 1W=semanal, 1M=mensual, 1Y=anual.
+- Puedes generar gráficos de balance con chart_type="line" o "bar".
+- Ejemplo: "¿cómo ha evolucionado mi cuenta este mes?" → period="1D", chart_type="line"
+- Ejemplo: "¿cómo ha evolucionado mi cuenta este año?" → period="1M", chart_type="line"`;
     },
-    en: (categories: string[], currency: string, timezone: string) => {
+    en: (categories: string[], tags: string[], accounts: { id: string; name: string }[], currency: string, timezone: string) => {
         const now = new Date().toLocaleString("en-US", { timeZone: timezone });
         const today = new Date().toLocaleDateString("en-CA", { timeZone: timezone }); // YYYY-MM-DD format
+        const accountsList = accounts.map((a) => `${a.name} (id: ${a.id})`).join(", ");
         return `You are a helpful financial assistant for tracking expenses and income in Firefly III.
 
 Current date and time: ${now}
@@ -216,6 +312,8 @@ Today's date (for transactions): ${today}
 Default currency: ${currency}
 
 Available categories: ${categories.join(", ")}
+Available tags: ${tags.length > 0 ? tags.join(", ") : "(none)"}
+Available accounts: ${accountsList}
 
 IMPORTANT BEHAVIORS:
 1. Interpret user messages as transaction requests by default. For example, "103 on groceries at Mercadona" should be interpreted as a withdrawal transaction.
@@ -246,10 +344,21 @@ NOTE ABOUT TRANSACTIONS:
 - Use your knowledge to identify well-known merchants and write their names correctly.
 
 CHARTS AND REPORTS:
-- If user asks for a graph, chart, or visualization, use the firefly_generate_chart tool.
-- If user asks for a complete/detailed report, or the query is too complex, use firefly_report_link to provide a link.
+- For transaction charts, use firefly_query_transactions with chart_type (pie, bar, line, doughnut). Requires aggregate_kind and aggregate_group_by.
+- Example: expenses by category this month → chart_type="pie", aggregate_kind="sum", aggregate_group_by="category"
+- Example: spending trend by week → chart_type="line", aggregate_kind="sum", aggregate_group_by="week"
+- For combined or custom data, use generate_chart with manual data_points.
+- If user asks for a complete/detailed report, use firefly_report_link to provide a link.
 - When generating a chart, respond with: "📊 Here's your chart:" followed by the chart.
-- When providing a report link, respond with: "🔗 [View full report](URL)"`;
+- When providing a report link, respond with: "🔗 [View full report](URL)"
+
+ACCOUNTS AND BALANCES:
+- To see current account balances, use firefly_get_accounts.
+- To see account balance over time, use firefly_get_account_history with account_id from available accounts list.
+- Use the period parameter for granularity: 1D=daily, 1W=weekly, 1M=monthly, 1Y=yearly.
+- You can generate balance charts with chart_type="line" or "bar".
+- Example: "how has my account evolved this month?" → period="1D", chart_type="line"
+- Example: "how has my account evolved this year?" → period="1M", chart_type="line"`;
     },
 };
 
@@ -344,14 +453,18 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
             const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
             const firefly = new FireflyClient(env);
 
-            // Get categories for context
-            const categories = await getCachedCategories(env);
+            // Get categories, tags, and accounts for context
+            const [categories, tags, accounts] = await Promise.all([
+                getCachedCategories(env),
+                getCachedTags(env),
+                getCachedAssetAccounts(env),
+            ]);
             const categoryNames = categories.map((c) => c.name);
 
             const currency = this.state.defaultCurrency ?? env.DEFAULT_CURRENCY;
 
             // Build system prompt
-            const systemPrompt = SYSTEM_PROMPTS[lang](categoryNames, currency, timezone);
+            const systemPrompt = SYSTEM_PROMPTS[lang](categoryNames, tags, accounts, currency, timezone);
 
             // Build messages with history
             const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -435,24 +548,74 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
                                 category: input.category_name,
                             });
                         } else if (toolCall.function.name === "firefly_query_transactions") {
-                            // Build search query
+                            // Build Firefly search query string
                             const queryParts: string[] = [];
 
                             if (args.date_from) queryParts.push(`date_after:${args.date_from}`);
                             if (args.date_to) queryParts.push(`date_before:${args.date_to}`);
-                            if (args.category_name) queryParts.push(`category_is:${args.category_name}`);
-                            if (args.text_contains) queryParts.push(args.text_contains);
+                            if (args.category_name) queryParts.push(`category_is:"${args.category_name}"`);
+                            if (args.tag) queryParts.push(`tag_is:"${args.tag}"`);
+                            if (args.transaction_type) queryParts.push(`type:${args.transaction_type}`);
+                            if (args.text_contains) queryParts.push(`description_contains:"${args.text_contains}"`);
 
                             const query = queryParts.length > 0 ? queryParts.join(" ") : "*";
-                            const transactions = await firefly.searchTransactions(query, args.limit ?? 10);
+                            const limit = args.limit ?? 100;
+                            const transactions = await firefly.searchTransactions(query, limit);
 
-                            if (args.aggregate_kind) {
-                                const aggregateInput: QueryTransactionsInput["aggregate"] = {
-                                    kind: args.aggregate_kind,
-                                    group_by: args.aggregate_group_by,
+                            const groupBy = args.aggregate_group_by as GroupByOption;
+
+                            if (args.chart_type && args.aggregate_kind && groupBy) {
+                                // Generate chart from aggregated data
+                                const aggregateInput = {
+                                    kind: args.aggregate_kind as "sum" | "count" | "avg",
+                                    group_by: groupBy,
                                 };
                                 const aggregated = aggregateTransactions(transactions, aggregateInput);
-                                result = formatAggregateResult(aggregated, currency);
+
+                                if (!aggregated.grouped || Object.keys(aggregated.grouped).length === 0) {
+                                    result = JSON.stringify({ error: "No data to chart for the specified criteria." });
+                                } else {
+                                    // Build chart data from grouped results
+                                    const chartData = Object.entries(aggregated.grouped).map(([label, value]) => ({
+                                        label,
+                                        value: Math.abs(value),
+                                    }));
+
+                                    // Sort: time-based by key asc, others by value desc
+                                    const isTimeBased = groupBy === "month" || groupBy === "week" || groupBy === "day";
+                                    chartData.sort((a, b) =>
+                                        isTimeBased ? a.label.localeCompare(b.label) : b.value - a.value
+                                    );
+
+                                    // Generate title if not provided
+                                    const groupLabel = { category: "categoría", month: "mes", week: "semana", day: "día", merchant: "comercio", tag: "etiqueta" };
+                                    const defaultTitle = lang === "es"
+                                        ? `${args.aggregate_kind === "sum" ? "Gastos" : args.aggregate_kind === "count" ? "Transacciones" : "Promedio"} por ${groupLabel[groupBy] ?? groupBy}`
+                                        : `${args.aggregate_kind === "sum" ? "Spending" : args.aggregate_kind === "count" ? "Transactions" : "Average"} by ${groupBy}`;
+                                    const title = args.chart_title ?? defaultTitle;
+
+                                    const chartType = args.chart_type as "pie" | "bar" | "line" | "doughnut";
+                                    const config = buildChartConfig(chartType, title, chartData, currency);
+                                    const generatedChartUrl = await generateQuickChartUrl(config);
+
+                                    // Store chart URL
+                                    chartUrl = generatedChartUrl;
+
+                                    result = JSON.stringify({
+                                        success: true,
+                                        chart_url: generatedChartUrl,
+                                        title,
+                                        data_points: chartData.length,
+                                    });
+                                }
+                            } else if (args.aggregate_kind) {
+                                // Text aggregation
+                                const aggregateInput = {
+                                    kind: args.aggregate_kind as "sum" | "count" | "avg",
+                                    group_by: groupBy,
+                                };
+                                const aggregated = aggregateTransactions(transactions, aggregateInput);
+                                result = formatAggregateResult(aggregated, currency, groupBy);
                             } else {
                                 // Return raw transaction list
                                 const txList = transactions.flatMap((t) =>
@@ -461,44 +624,35 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
                                         amount: split.amount,
                                         description: split.description,
                                         category: split.category_name,
+                                        destination: split.destination_name,
+                                        tags: split.tags,
                                     }))
                                 );
                                 result = JSON.stringify(txList, null, 2);
                             }
-                        } else if (toolCall.function.name === "firefly_generate_chart") {
-                            // Generate chart
-                            const chartType = args.chart_type as "pie" | "bar" | "doughnut";
-                            const dataSource = args.data_source as string;
+                        } else if (toolCall.function.name === "generate_chart") {
+                            // Manual chart generation from provided data points
+                            const chartType = args.chart_type as "pie" | "bar" | "line" | "doughnut";
+                            const title = args.title as string;
+                            const dataPoints = args.data_points as { label: string; value: number }[];
 
-                            let entries;
-                            let defaultTitle: string;
-
-                            if (dataSource === "expense_by_category") {
-                                entries = await firefly.getExpenseByCategory(args.date_from, args.date_to);
-                                defaultTitle = lang === "es"
-                                    ? `Gastos por categoría (${args.date_from} - ${args.date_to})`
-                                    : `Expenses by category (${args.date_from} - ${args.date_to})`;
-                            } else if (dataSource === "income_by_category") {
-                                entries = await firefly.getIncomeByCategory(args.date_from, args.date_to);
-                                defaultTitle = lang === "es"
-                                    ? `Ingresos por categoría (${args.date_from} - ${args.date_to})`
-                                    : `Income by category (${args.date_from} - ${args.date_to})`;
+                            if (!dataPoints || dataPoints.length === 0) {
+                                result = JSON.stringify({ error: "No data points provided." });
                             } else {
-                                throw new Error(`Unknown data source: ${dataSource}`);
+                                // Manual chart - no currency label (user provides raw data)
+                                const config = buildChartConfig(chartType, title, dataPoints);
+                                const generatedChartUrl = await generateQuickChartUrl(config);
+
+                                // Store chart URL
+                                chartUrl = generatedChartUrl;
+
+                                result = JSON.stringify({
+                                    success: true,
+                                    chart_url: generatedChartUrl,
+                                    title,
+                                    data_points: dataPoints.length,
+                                });
                             }
-
-                            const title = args.title ?? defaultTitle;
-                            const generatedChartUrl = buildExpenseByCategoryChart(entries, title, chartType);
-
-                            // Store chart URL to include in response
-                            chartUrl = generatedChartUrl;
-
-                            // Return success to the LLM
-                            result = JSON.stringify({
-                                success: true,
-                                chart_url: generatedChartUrl,
-                                title,
-                            });
                         } else if (toolCall.function.name === "firefly_report_link") {
                             // Get asset account IDs for report link
                             const accountIds = await getCachedAssetAccountIds(env);
@@ -516,6 +670,66 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
                                 report_url: reportUrl,
                                 report_type: args.report_type,
                             });
+                        } else if (toolCall.function.name === "firefly_get_accounts") {
+                            // Get accounts list
+                            const accountType = args.account_type as "asset" | "expense" | "revenue" | "liability" | undefined;
+                            const accounts = await firefly.getAccounts(accountType ?? undefined);
+
+                            // Format for LLM
+                            const accountList = accounts.map((a) => ({
+                                id: a.id,
+                                name: a.name,
+                                type: a.type,
+                                balance: `${a.current_balance.toFixed(2)} ${a.currency_code}`,
+                            }));
+
+                            result = JSON.stringify(accountList, null, 2);
+                        } else if (toolCall.function.name === "firefly_get_account_history") {
+                            // Get account balance history
+                            const period = args.period as "1D" | "1W" | "1M" | "1Y";
+                            const history = await firefly.getAccountHistory(
+                                args.account_id,
+                                args.date_from,
+                                args.date_to,
+                                period
+                            );
+
+                            if (history.length === 0) {
+                                result = JSON.stringify({ error: "No history data found for this account and date range." });
+                            } else if (args.chart_type) {
+                                // Generate chart from history
+                                const chartType = args.chart_type as "line" | "bar";
+                                const chartData = history.map((p) => ({
+                                    label: p.date,
+                                    value: p.balance,
+                                }));
+
+                                // Get account name for title
+                                const accounts = await getCachedAssetAccounts(env);
+                                const account = accounts.find((a) => a.id === args.account_id);
+                                const accountName = account?.name ?? `Account ${args.account_id}`;
+
+                                const defaultTitle = lang === "es"
+                                    ? `Balance de ${accountName} (${args.date_from} - ${args.date_to})`
+                                    : `${accountName} Balance (${args.date_from} - ${args.date_to})`;
+                                const title = args.chart_title ?? defaultTitle;
+
+                                const config = buildChartConfig(chartType, title, chartData, currency);
+                                const generatedChartUrl = await generateQuickChartUrl(config);
+
+                                chartUrl = generatedChartUrl;
+
+                                result = JSON.stringify({
+                                    success: true,
+                                    chart_url: generatedChartUrl,
+                                    title,
+                                    data_points: chartData.length,
+                                });
+                            } else {
+                                // Return text data
+                                const formatted = history.map((p) => `${p.date}: ${p.balance.toFixed(2)} ${currency}`);
+                                result = formatted.join("\n");
+                            }
                         } else {
                             result = JSON.stringify({ error: "Unknown tool" });
                         }
