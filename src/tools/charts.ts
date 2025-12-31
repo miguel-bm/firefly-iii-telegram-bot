@@ -20,6 +20,7 @@ export interface ChartConfig {
     type: "pie" | "bar" | "line" | "doughnut";
     title: string;
     labels: string[];
+    currency?: string; // For Y-axis label
     datasets: {
         label: string;
         data: number[];
@@ -28,24 +29,45 @@ export interface ChartConfig {
     }[];
 }
 
+// Sanitize text to avoid JSON issues
+function sanitizeText(text: string, maxLength = 30): string {
+    return text
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") // Remove control characters
+        .replace(/"/g, "'") // Replace double quotes
+        .slice(0, maxLength);
+}
+
+// Max data points to keep charts readable and URLs manageable
+const MAX_DATA_POINTS = 100;
+
 export function buildChartConfig(
     type: "pie" | "bar" | "line" | "doughnut",
     title: string,
-    data: { label: string; value: number }[]
+    data: { label: string; value: number }[],
+    currency?: string
 ): ChartConfig {
-    const labels = data.map((d) => d.label);
-    const values = data.map((d) => Math.abs(d.value));
+    // Limit data points
+    const limitedData = data.slice(0, MAX_DATA_POINTS);
+
+    const labels = limitedData.map((d) => sanitizeText(d.label, 20));
+    const values = limitedData.map((d) => Math.abs(d.value));
+
+    // For line/bar charts: use single color. For pie/doughnut: use color per segment.
+    const useSingleColor = type === "line" || type === "bar";
+    const bgColors = useSingleColor ? COLORS[0] + "CC" : BACKGROUND_COLORS.slice(0, limitedData.length);
+    const borderColors = useSingleColor ? COLORS[0] : COLORS.slice(0, limitedData.length);
 
     return {
         type,
-        title,
+        title: sanitizeText(title, 100), // Allow longer titles
         labels,
+        currency,
         datasets: [
             {
-                label: title,
+                label: sanitizeText(title, 50),
                 data: values,
-                backgroundColor: BACKGROUND_COLORS.slice(0, data.length),
-                borderColor: COLORS.slice(0, data.length),
+                backgroundColor: bgColors,
+                borderColor: borderColors,
             },
         ],
     };
@@ -70,8 +92,12 @@ export function buildMultiDatasetChartConfig(
     };
 }
 
-export function generateQuickChartUrl(config: ChartConfig): string {
-    const chartJsConfig = {
+// Build the Chart.js config object
+function buildChartJsConfig(config: ChartConfig): object {
+    const isPieOrDoughnut = config.type === "pie" || config.type === "doughnut";
+    const isSingleDataset = config.datasets.length === 1;
+
+    return {
         type: config.type,
         data: {
             labels: config.labels,
@@ -82,6 +108,8 @@ export function generateQuickChartUrl(config: ChartConfig): string {
                 borderColor: ds.borderColor,
                 borderWidth: config.type === "line" ? 2 : 1,
                 fill: config.type === "line" ? false : undefined,
+                pointRadius: config.type === "line" ? 3 : undefined,
+                tension: config.type === "line" ? 0.1 : undefined, // Slight curve
             })),
         },
         options: {
@@ -89,21 +117,69 @@ export function generateQuickChartUrl(config: ChartConfig): string {
                 title: {
                     display: true,
                     text: config.title,
-                    font: { size: 16, weight: "bold" },
+                    font: { size: 14, weight: "bold" },
                 },
                 legend: {
-                    position: config.type === "pie" || config.type === "doughnut" ? "right" : "top",
+                    // Hide legend for single-dataset line/bar charts (redundant)
+                    display: isPieOrDoughnut || !isSingleDataset,
+                    position: isPieOrDoughnut ? "right" : "top",
+                },
+            },
+            scales: isPieOrDoughnut ? undefined : {
+                y: {
+                    beginAtZero: false,
+                    title: {
+                        display: !!config.currency,
+                        text: config.currency ?? "",
+                    },
+                },
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                    },
                 },
             },
             responsive: true,
             maintainAspectRatio: true,
         },
     };
+}
 
+// Generate short URL via QuickChart POST API
+export async function generateQuickChartUrl(config: ChartConfig): Promise<string> {
+    const chartJsConfig = buildChartJsConfig(config);
+
+    // Use POST endpoint to get a short URL
+    const response = await fetch("https://quickchart.io/chart/create", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            chart: chartJsConfig,
+            width: 600,
+            height: 400,
+            backgroundColor: "white",
+            format: "png",
+        }),
+    });
+
+    if (!response.ok) {
+        // Fallback to direct URL if POST fails
+        const chartJson = JSON.stringify(chartJsConfig);
+        const encoded = encodeURIComponent(chartJson);
+        return `https://quickchart.io/chart?c=${encoded}&w=600&h=400&bkg=white&f=png`;
+    }
+
+    const result = await response.json() as { success: boolean; url: string };
+    if (result.success && result.url) {
+        return result.url;
+    }
+
+    // Fallback
     const chartJson = JSON.stringify(chartJsConfig);
     const encoded = encodeURIComponent(chartJson);
-
-    // QuickChart URL with options for better quality
     return `https://quickchart.io/chart?c=${encoded}&w=600&h=400&bkg=white&f=png`;
 }
 
@@ -123,23 +199,23 @@ export function insightToChartData(
 }
 
 // Build expense by category chart
-export function buildExpenseByCategoryChart(
+export async function buildExpenseByCategoryChart(
     entries: InsightEntry[],
     title: string,
     chartType: "pie" | "bar" | "doughnut" = "pie"
-): string {
+): Promise<string> {
     const data = insightToChartData(entries);
     const config = buildChartConfig(chartType, title, data);
     return generateQuickChartUrl(config);
 }
 
 // Build income vs expense comparison chart
-export function buildIncomeVsExpenseChart(
+export async function buildIncomeVsExpenseChart(
     months: string[],
     incomeData: number[],
     expenseData: number[],
     title: string
-): string {
+): Promise<string> {
     const config = buildMultiDatasetChartConfig("bar", title, months, [
         { label: "Ingresos", data: incomeData, color: "#10B981" },
         { label: "Gastos", data: expenseData.map((v) => Math.abs(v)), color: "#EF4444" },
@@ -148,12 +224,12 @@ export function buildIncomeVsExpenseChart(
 }
 
 // Build trend line chart
-export function buildTrendChart(
+export async function buildTrendChart(
     labels: string[],
     values: number[],
     title: string,
     datasetLabel: string
-): string {
+): Promise<string> {
     const config: ChartConfig = {
         type: "line",
         title,
