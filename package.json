@@ -1,0 +1,32 @@
+{
+  "name": "firefly-iii-telegram-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot for Firefly III expense tracking",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.7.1",
+  "dependencies": {
+    "agents": "^0.0.92",
+    "grammy": "^1.38.4",
+    "hono": "^4.11.3",
+    "openai": "^6.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.54.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd"
+    ]
+  }
+}
