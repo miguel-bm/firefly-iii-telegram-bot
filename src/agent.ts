@@ -48,6 +48,71 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     {
         type: "function",
         function: {
+            name: "firefly_delete_transaction",
+            description:
+                "Delete a transaction from Firefly III. IMPORTANT: Always confirm with the user before calling this. First search for the transaction, show details, ask for confirmation, then delete.",
+            strict: true,
+            parameters: {
+                type: "object",
+                properties: {
+                    transaction_id: {
+                        type: "string",
+                        description: "The ID of the transaction to delete. Get this from firefly_query_transactions results.",
+                    },
+                },
+                required: ["transaction_id"],
+                additionalProperties: false,
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "firefly_update_transaction",
+            description:
+                "Update an existing transaction in Firefly III. IMPORTANT: Always confirm changes with the user before calling this. Only include fields that need to be changed.",
+            strict: true,
+            parameters: {
+                type: "object",
+                properties: {
+                    transaction_id: {
+                        type: "string",
+                        description: "The ID of the transaction to update. Get this from firefly_query_transactions results.",
+                    },
+                    date: {
+                        type: ["string", "null"],
+                        description: "New date (YYYY-MM-DD). Use null to keep current.",
+                    },
+                    amount: {
+                        type: ["number", "null"],
+                        description: "New amount. Use null to keep current.",
+                    },
+                    description: {
+                        type: ["string", "null"],
+                        description: "New description/merchant name. Use null to keep current.",
+                    },
+                    category_name: {
+                        type: ["string", "null"],
+                        description: "New category name. Use null to keep current.",
+                    },
+                    tags: {
+                        type: ["array", "null"],
+                        items: { type: "string" },
+                        description: "New tags array. Use null to keep current.",
+                    },
+                    notes: {
+                        type: ["string", "null"],
+                        description: "New notes. Use null to keep current.",
+                    },
+                },
+                required: ["transaction_id", "date", "amount", "description", "category_name", "tags", "notes"],
+                additionalProperties: false,
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
             name: "firefly_query_transactions",
             description:
                 "Search, aggregate, and optionally chart transactions from Firefly III. Use for questions about spending, summaries, finding transactions, or generating charts. Text search is substring matching (not fuzzy). Set chart_type to get a visual chart instead of text.",
@@ -284,6 +349,14 @@ NOTA SOBRE TRANSACCIONES:
   Ejemplos: "mercadona" → "Mercadona", "Mercadna" → "Mercadona", "lidl" → "Lidl", "amazon" → "Amazon".
 - Usa tu conocimiento para identificar comercios conocidos y escribir sus nombres correctamente.
 
+EDITAR Y ELIMINAR TRANSACCIONES:
+- Para eliminar o editar, primero busca la transacción con firefly_query_transactions.
+- Los resultados incluyen el "id" de cada transacción, necesario para editar/eliminar.
+- SIEMPRE pide confirmación explícita al usuario antes de eliminar o modificar.
+- Muestra los detalles de la transacción y pregunta: "¿Confirmas que quieres [eliminar/modificar] esta transacción?"
+- Solo ejecuta la acción si el usuario responde afirmativamente (sí, ok, confirmo, adelante, etc.).
+- Para editar, usa firefly_update_transaction solo con los campos que cambian (deja null los demás).
+
 GRÁFICOS Y REPORTES:
 - Para gráficos de transacciones, usa firefly_query_transactions con chart_type (pie, bar, line, doughnut). Requiere aggregate_kind y aggregate_group_by.
 - Ejemplo: gastos por categoría este mes → chart_type="pie", aggregate_kind="sum", aggregate_group_by="category"
@@ -342,6 +415,14 @@ NOTE ABOUT TRANSACTIONS:
 - IMPORTANT: Fix typos and properly capitalize merchant names.
   Examples: "mercadona" → "Mercadona", "Mercadna" → "Mercadona", "lidl" → "Lidl", "amazon" → "Amazon".
 - Use your knowledge to identify well-known merchants and write their names correctly.
+
+EDIT AND DELETE TRANSACTIONS:
+- To delete or edit, first search for the transaction with firefly_query_transactions.
+- Results include the "id" of each transaction, needed for edit/delete operations.
+- ALWAYS ask for explicit confirmation before deleting or modifying.
+- Show transaction details and ask: "Do you confirm you want to [delete/modify] this transaction?"
+- Only execute the action if the user responds affirmatively (yes, ok, confirm, go ahead, etc.).
+- To edit, use firefly_update_transaction with only the fields that change (leave null for others).
 
 CHARTS AND REPORTS:
 - For transaction charts, use firefly_query_transactions with chart_type (pie, bar, line, doughnut). Requires aggregate_kind and aggregate_group_by.
@@ -547,6 +628,37 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
                                 amount: input.amount,
                                 category: input.category_name,
                             });
+                        } else if (toolCall.function.name === "firefly_delete_transaction") {
+                            await firefly.deleteTransaction(args.transaction_id);
+                            result = JSON.stringify({
+                                success: true,
+                                deleted_id: args.transaction_id,
+                            });
+                        } else if (toolCall.function.name === "firefly_update_transaction") {
+                            // Build updates object with only non-null values
+                            const updates: {
+                                date?: string;
+                                amount?: number;
+                                description?: string;
+                                category_name?: string;
+                                tags?: string[];
+                                notes?: string;
+                            } = {};
+
+                            if (args.date !== null) updates.date = args.date;
+                            if (args.amount !== null) updates.amount = args.amount;
+                            if (args.description !== null) updates.description = args.description;
+                            if (args.category_name !== null) updates.category_name = args.category_name;
+                            if (args.tags !== null) updates.tags = args.tags;
+                            if (args.notes !== null) updates.notes = args.notes;
+
+                            const updated = await firefly.updateTransaction(args.transaction_id, updates);
+                            result = JSON.stringify({
+                                success: true,
+                                id: updated.id,
+                                description: updated.description,
+                                updated_fields: Object.keys(updates),
+                            });
                         } else if (toolCall.function.name === "firefly_query_transactions") {
                             // Build Firefly search query string
                             const queryParts: string[] = [];
@@ -617,9 +729,10 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
                                 const aggregated = aggregateTransactions(transactions, aggregateInput);
                                 result = formatAggregateResult(aggregated, currency, groupBy);
                             } else {
-                                // Return raw transaction list
+                                // Return raw transaction list with IDs for edit/delete
                                 const txList = transactions.flatMap((t) =>
                                     t.attributes.transactions.map((split) => ({
+                                        id: t.id, // Transaction ID for edit/delete operations
                                         date: split.date,
                                         amount: split.amount,
                                         description: split.description,

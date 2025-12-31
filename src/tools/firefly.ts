@@ -136,6 +136,57 @@ export class FireflyClient {
         return this.searchTransactions("*", limit);
     }
 
+    async deleteTransaction(id: string): Promise<void> {
+        await this.request(`/transactions/${id}`, {
+            method: "DELETE",
+        });
+    }
+
+    async updateTransaction(
+        id: string,
+        updates: {
+            date?: string;
+            amount?: number;
+            description?: string;
+            category_name?: string;
+            tags?: string[];
+            notes?: string;
+        }
+    ): Promise<{ id: string; description: string }> {
+        // Build the update payload - only include non-undefined fields
+        const transactionUpdate: Record<string, unknown> = {};
+
+        if (updates.date !== undefined) transactionUpdate.date = updates.date;
+        if (updates.amount !== undefined) transactionUpdate.amount = String(updates.amount);
+        if (updates.description !== undefined) transactionUpdate.description = updates.description;
+        if (updates.category_name !== undefined) transactionUpdate.category_name = updates.category_name;
+        if (updates.tags !== undefined) transactionUpdate.tags = updates.tags;
+        if (updates.notes !== undefined) transactionUpdate.notes = updates.notes;
+
+        const payload = {
+            apply_rules: true,
+            fire_webhooks: true,
+            transactions: [transactionUpdate],
+        };
+
+        interface UpdateResponse {
+            data: {
+                id: string;
+                attributes: { transactions: { description: string }[] };
+            };
+        }
+
+        const response = await this.request<UpdateResponse>(`/transactions/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(payload),
+        });
+
+        return {
+            id: response.data.id,
+            description: response.data.attributes.transactions[0]?.description ?? "",
+        };
+    }
+
     // Insight endpoints for chart data
     async getExpenseByCategory(
         start: string,
