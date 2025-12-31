@@ -80,6 +80,9 @@ export class FireflyClient {
     ): Promise<{ id: string; description: string }> {
         const txType = input.type ?? "withdrawal";
 
+        // Always add "telegram-bot" tag to identify transactions created by this bot
+        const tags = [...(input.tags ?? []), "telegram-bot"];
+
         const payload = {
             error_if_duplicate_hash: false,
             apply_rules: true,
@@ -107,7 +110,7 @@ export class FireflyClient {
                             ? input.destination_account_id ?? env.DEFAULT_ACCOUNT_ID
                             : undefined,
                     budget_id: input.budget_id,
-                    tags: input.tags,
+                    tags,
                     notes: input.notes,
                 },
             ],
