@@ -14,6 +14,10 @@ export interface Env {
     BOT_LANGUAGE: "es" | "en";
     BOT_TIMEZONE: string;
     MAX_HISTORY_MESSAGES: string;
+    
+    // Cron job settings
+    ENABLE_MONTHLY_REPORT: string;       // "true" or "false"
+    BANK_IMPORT_REMINDER_DAYS: string;   // Number of days
 
     // Secrets
     TELEGRAM_BOT_TOKEN: string;

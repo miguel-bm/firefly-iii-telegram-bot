@@ -11,6 +11,10 @@ BOT_LANGUAGE = "es"           # "es" for Spanish, "en" for English
 BOT_TIMEZONE = "Europe/Madrid"
 MAX_HISTORY_MESSAGES = "20"   # Number of messages to keep in memory
 
+# Cron job settings
+ENABLE_MONTHLY_REPORT = "true"           # Send monthly report link on 1st of each month
+BANK_IMPORT_REMINDER_DAYS = "10"         # Remind if no bank imports in N days
+
 # Secrets (set via `wrangler secret put <NAME>`):
 # - TELEGRAM_BOT_TOKEN
 # - TELEGRAM_WEBHOOK_SECRET
@@ -36,4 +40,11 @@ new_sqlite_classes = ["ChatAgentDO"]
 [[kv_namespaces]]
 binding = "CATEGORY_CACHE"
 id = "193a0c3a909d43b89b2e2b71564037cd"
+
+# Cron triggers
+[triggers]
+crons = [
+    "0 9 1 * *",   # Monthly report: 1st of month at 9:00 UTC
+    "0 10 * * *"   # Daily bank import check: every day at 10:00 UTC
+]
 

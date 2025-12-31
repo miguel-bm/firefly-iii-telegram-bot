@@ -3,6 +3,7 @@ import { Bot } from "grammy";
 import type { Env } from "./types.js";
 import { ChatAgentDO } from "./agent.js";
 import { processMessage, getMessages, type AgentProxy } from "./bot.js";
+import { handleScheduled } from "./cron.js";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -119,8 +120,11 @@ app.post("/telegram/webhook", async (c) => {
     return c.json({ ok: true });
 });
 
-// Export the Hono app as the default worker
-export default app;
+// Export the worker with both fetch and scheduled handlers
+export default {
+    fetch: app.fetch,
+    scheduled: handleScheduled,
+};
 
 // Export the ChatAgentDO Durable Object class
 export { ChatAgentDO };
