@@ -1,0 +1,39 @@
+name = "firefly-telegram-bot"
+main = "src/index.ts"
+compatibility_date = "2024-12-30"
+compatibility_flags = ["nodejs_compat"]
+
+# Environment variables (non-secret)
+[vars]
+DEFAULT_CURRENCY = "EUR"
+DEFAULT_ACCOUNT_ID = "151"
+BOT_LANGUAGE = "es"           # "es" for Spanish, "en" for English
+BOT_TIMEZONE = "Europe/Madrid"
+MAX_HISTORY_MESSAGES = "20"   # Number of messages to keep in memory
+
+# Secrets (set via `wrangler secret put <NAME>`):
+# - TELEGRAM_BOT_TOKEN
+# - TELEGRAM_WEBHOOK_SECRET
+# - TELEGRAM_ALLOWED_CHAT_ID
+# - FIREFLY_API_URL (e.g., https://firefly.yourdomain.com)
+# - FIREFLY_API_TOKEN
+# - OPENAI_API_KEY
+
+# Durable Objects for Cloudflare Agents
+[[durable_objects.bindings]]
+name = "CHAT_AGENT"
+class_name = "ChatAgentDO"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["ChatAgent"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["ChatAgentDO"]
+
+# KV namespace for category cache
+[[kv_namespaces]]
+binding = "CATEGORY_CACHE"
+id = "193a0c3a909d43b89b2e2b71564037cd"
+
