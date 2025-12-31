@@ -4,6 +4,7 @@ node_modules/
 # Build
 dist/
 .wrangler/
+worker-configuration.d.ts
 
 # Environment
 .env

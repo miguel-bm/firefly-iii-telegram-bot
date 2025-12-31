@@ -1,0 +1,15 @@
+# Telegram Bot
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_WEBHOOK_SECRET=your_random_secret_here
+TELEGRAM_ALLOWED_CHAT_ID=your_chat_id_here
+
+# Firefly III
+FIREFLY_API_URL=https://firefly.yourdomain.com
+FIREFLY_API_TOKEN=your_firefly_api_token_here
+
+# OpenAI
+OPENAI_API_KEY=sk-your_openai_api_key_here
+
+# Optional: Default cash account ID (get from Firefly III)
+DEFAULT_ACCOUNT_ID=1
+
