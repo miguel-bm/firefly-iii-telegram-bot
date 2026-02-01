@@ -101,3 +101,77 @@ node test-import.mjs
 
 - `0 9 1 * *` - Monthly report (1st of month)
 - `0 10 * * *` - Bank import reminder (daily check)
+
+
+## Telegram Web App
+ 
+### Overview
+ 
+The Web App provides a dashboard UI inside Telegram with:
+- Account balances summary
+- Expense breakdown chart (doughnut, last 30 days)
+- Recent transactions table with category icons
+ 
+### API Routes (src/index.ts)
+ 
+| Route | Purpose |
+|-------|---------|
+| `GET /api/transactions` | Recent transactions (query: `limit`, `type`) |
+| `GET /api/expenses/by-category` | Expense summary (query: `days`) |
+| `GET /api/accounts` | Asset account balances |
+ 
+All API routes require `X-Telegram-Init-Data` header with valid Telegram WebApp initData.
+ 
+### Authentication
+ 
+The webapp uses Telegram's cryptographic authentication:
+1. Telegram sends `initData` (signed with bot token)
+2. Worker validates HMAC-SHA256 signature
+3. User ID checked against `TELEGRAM_ALLOWED_CHAT_ID`
+ 
+### BotFather Setup
+ 
+To enable the Web App, configure it with BotFather:
+ 
+```
+1. Open @BotFather in Telegram
+2. Send /mybots → Select your bot
+3. Bot Settings → Menu Button
+4. Configure Menu Button:
+   - URL: https://your-worker.workers.dev (your deployed worker URL)
+   - Title: "Dashboard" (or whatever you prefer)
+ 
+Alternative: Use /setmenubutton command directly:
+1. Send /setmenubutton to @BotFather
+2. Select your bot
+3. Enter the URL: https://your-worker.workers.dev
+4. Enter button text: Dashboard
+```
+ 
+After setup, users will see a "Dashboard" button next to the message input in your bot's chat. Tapping it opens the Web App.
+ 
+### Development
+ 
+For local development of the webapp:
+ 
+```bash
+# Terminal 1: Run the worker (API backend)
+pnpm run dev
+ 
+# Terminal 2: Run the webapp dev server
+cd webapp && pnpm run dev
+```
+ 
+Note: Local webapp development requires mocking Telegram's initData or temporarily disabling validation.
+ 
+### Deployment
+ 
+```bash
+# 1. Build the webapp
+cd webapp && pnpm run build
+ 
+# 2. Deploy everything (worker + static assets)
+cd .. && pnpm run deploy
+```
+ 
+The `[assets]` config in wrangler.toml serves `webapp/dist/` as static files.
