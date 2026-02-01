@@ -175,3 +175,7 @@ cd .. && pnpm run deploy
 ```
  
 The `[assets]` config in wrangler.toml serves `webapp/dist/` as static files.
+
+## Claude behaviour
+
+- Always keep CLAUDE.md up to date with your changes and additions to the project if relevant.
