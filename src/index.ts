@@ -290,6 +290,28 @@ app.post("/telegram/webhook", async (c) => {
         }
     });
 
+    // Dashboard command - opens Web App via inline keyboard (works in groups)
+    bot.command("dashboard", async (ctx) => {
+        // Get the worker URL from the webhook request
+        const workerUrl = new URL(c.req.url).origin;
+
+        const buttonText = lang === "es" ? "📊 Abrir Dashboard" : "📊 Open Dashboard";
+        const messageText = lang === "es"
+            ? "Pulsa el botón para abrir el dashboard:"
+            : "Tap the button to open the dashboard:";
+
+        await ctx.reply(messageText, {
+            reply_markup: {
+                inline_keyboard: [[
+                    {
+                        text: buttonText,
+                        web_app: { url: workerUrl },
+                    },
+                ]],
+            },
+        });
+    });
+
     // Handle document uploads (bank statements)
     bot.on("message:document", async (ctx) => {
         const document = ctx.message.document;

@@ -48,6 +48,8 @@ const MESSAGES = {
             '• "¿Cuánto gasté esta semana?"\n' +
             '• "Mostrar gastos por categoría este mes"\n' +
             '• "Buscar transacciones en Amazon"\n\n' +
+            "**Dashboard:**\n" +
+            "Usa /dashboard para abrir el panel con gráficos y tablas.\n\n" +
             "¡También puedes enviar mensajes de voz!",
     },
     en: {
@@ -71,6 +73,8 @@ const MESSAGES = {
             '• "How much did I spend this week?"\n' +
             '• "Show spending by category this month"\n' +
             '• "Find transactions at Amazon"\n\n' +
+            "**Dashboard:**\n" +
+            "Use /dashboard to open the panel with charts and tables.\n\n" +
             "You can also send voice messages!",
     },
 };
