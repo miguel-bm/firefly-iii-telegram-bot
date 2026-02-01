@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "build:webapp": "cd webapp && pnpm install && pnpm run build",
+    "deploy": "pnpm run build:webapp && wrangler deploy",
     "types": "wrangler types"
   },
   "keywords": [],
