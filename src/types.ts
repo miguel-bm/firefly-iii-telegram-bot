@@ -9,6 +9,9 @@ export interface Env {
     CATEGORY_CACHE: KVNamespace;
     IMPORT_HASHES: KVNamespace;
 
+    // Static assets for web app
+    ASSETS: Fetcher;
+
     // Environment variables
     DEFAULT_CURRENCY: string;
     DEFAULT_ACCOUNT_ID?: string;
