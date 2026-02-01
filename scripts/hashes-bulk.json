@@ -1,0 +1,447 @@
+[
+  {
+    "key": "import-hash:c9e6ffe265b04179036365679e9f9a3e0de4965df2c9d7b10fcf0dfc70ca7e4f",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-29\",\"amount\":7042.94,\"description\":\"Abono por transferencia a su favor recibida en euros\",\"importedAt\":\"2026-02-01T13:25:03.039Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:f14853b1504a4eeab27b12e24ebde6c36a3f48cade87a3735c55c3c4201af71e",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-28\",\"amount\":-1000,\"description\":\"Transferencia realizada\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:170c6b69dbbf52e548d14180eb072aba4cc8380aaa5f537d47714d1e463203ee",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-22\",\"amount\":-6.99,\"description\":\"Prime video *7d94v46b5\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:3606436114931a29aefc938bbd1dba78a51352ad1503aa5c48340cd812f88a05",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-21\",\"amount\":-26.74,\"description\":\"Amazon.es*qa2n88y15\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:8b4ecc8a854f9dff84415e066b93e41295f4e25dbb9b2f8ffa4b13c99faeb833",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-23\",\"amount\":-1000,\"description\":\"Transferencia realizada\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:b88ab2e72a4789987157ca575ce5a1f30a3c68567087428e247857caecc56c3d",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-20\",\"amount\":-29.84,\"description\":\"Amazon.es*l71pn27a5\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:40f4dfccaf7707557b4c6e15e6d18907489be0706b93182eb6babcac330d4b8f",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-19\",\"amount\":-21.52,\"description\":\"Cursor, ai powered ide\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:ac7fa78a327c36aa5299222f0c1e1c3aeaf72dc22ba34bbbd3d02e3d7bb54bad",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-15\",\"amount\":-4.48,\"description\":\"Paypal *cloudflare\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:b511a3b89976b751b4f2968ecc375eb192da3fdec99ccb016d7bd4085817fa30",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-16\",\"amount\":-39.49,\"description\":\"Amzn mktp es*ob6r40sz5\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:8dfb198280e378711bddd581dd57706f72d3feff3514890461bd05e8a41fef62",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-16\",\"amount\":-20.99,\"description\":\"Paypal *spotify*p3e73eb23\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:b07642ef6dfa818c11eed6c43528327836e52f14e5389e92bd7b0f7718aad8c0",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-16\",\"amount\":-39.98,\"description\":\"Supabase\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:b5f2d6bf710a32d106318023b81419642c01318e5eb039c06095aabcfd2e5f4f",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-17\",\"amount\":-41.38,\"description\":\"Bizum\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:eddeac6d4f8548253996500900fca734b949aeb23c0b562bf4ad5a78ef47c882",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-13\",\"amount\":-47.2,\"description\":\"E.s.valaes s.l.          san agustin des\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:340b994b90fe6846b127d1cdb865a0c62f6ee4b48afa8ea97192cc88efe72321",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-09\",\"amount\":-49.92,\"description\":\"Openai\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:0f91cc2995007b26017832ec30abdd26297c9492d91166d04fde151442077517",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-09\",\"amount\":-21.41,\"description\":\"Openai *chatgpt subscr\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:0296812367d8c37aa9b9a13677cda847cda8bc03e2a70d6b4b7986c3f2bf64fe",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-07\",\"amount\":-20.96,\"description\":\"Amzn mktp es*zc8fj7ej4\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:fa484336d4b5330b6bee19e933aa813e5ad4a68f079f91b33aa3af18ff50cb13",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-07\",\"amount\":-9.99,\"description\":\"Amzn mktp es*zc8zl2mu4\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:802866ae218a79981c82c6b23fb2c8050cf33257297bf75aec4b8e91f21a056d",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-06\",\"amount\":-26,\"description\":\"Adeudo fundacion save the children\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:df99d6149394497ea06e2a869055b54684424bf4bfa816acc66108dc765b2466",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-02\",\"amount\":-58.36,\"description\":\"Amzn mktp es*zg41t5vm4\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:9cc703e2885645b17b8979d60c795efe0224177ccfd890431aaac725a6f8bf57",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-03\",\"amount\":-13.99,\"description\":\"Paypal *netflix\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:0cb1b9439dfebeea3897ae6da06669ce719581db047b5578b224921e499c778c",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-01\",\"amount\":-0.11,\"description\":\"Aws emea\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:5041cb30edab544a4a01daa7163c7aac48280d43b5ac84c77c90f252d427b89e",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-02\",\"amount\":-850,\"description\":\"Transferencia realizada\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:efb263443633f853bfd8452e2669256e0e3c0d613ff035b87ce176ce991f7312",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-02\",\"amount\":-1050,\"description\":\"Adeudo indexa mas rentabilidad acciones f.p.\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:62582ecf1ba9dc844c03cb2f4acc14dda2bea15425fe9b372e1616f7f05759c3",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"bbva\",\"date\":\"2026-01-02\",\"amount\":-450,\"description\":\"Adeudo indexa mas rentabilidad bonos f.p.\",\"importedAt\":\"2026-02-01T13:25:03.042Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:ec23da7b38fec6653979338d41bf9d69cc4a6786ac898274ee0b7ef9d8c78fc0",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2026-01-30\",\"amount\":-20,\"description\":\"DIGI SPAIN TELEC.\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:75ff771b99802deaae834f0d94e48d3a727183a18f92be9aa8501cdef0ceafc2",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2026-01-29\",\"amount\":-37.42,\"description\":\"MERCADONA SAN AGU\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:2b78faf7b17eb562d50eecdebca83f85c50b11f2272c1df094275653cd1422ca",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2026-01-26\",\"amount\":-34.9,\"description\":\"MERCADONA SAN AGU\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:803662e66248d10946bebc5830d53a3d557ea504d61651792ed7141d36a68891",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2026-01-23\",\"amount\":-46.74,\"description\":\"GRUPO AHORRAMAS 1\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:c87e152c03a744d03e79fd99ed61ad4a4b9dfe937378933b2a91698df8c5b13c",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2026-01-17\",\"amount\":-39.81,\"description\":\"CANAL DE ISABEL\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:02756665da50111df50230c4319e0cd123e3c3471b154ee15176e60c0b5f4560",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2026-01-13\",\"amount\":-165,\"description\":\"PAGO INICIAL CORT\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:e6e5439844d38274caeb591dc2b4fde3a736aeb29a2a199611c8ca46bf24a8a8",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2026-01-13\",\"amount\":-76.23,\"description\":\"BASER COMER.REFER\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:cb73f08ffaecbd15ccad6b1313fd4e1010ee13218c70887d817087c40e77fe86",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2026-01-12\",\"amount\":302.09,\"description\":\"SOBRANTE PROVISIO\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:605280af1858e607928bce51f2365d729c197adab5b8dcb07316eb44efd655c4",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2026-01-09\",\"amount\":-42.63,\"description\":\"MERCADONA SAN AGU\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:8d9361d31f23e4a60298ab2f3f3ef17019bea164598daa3ba005dffcb577efdb",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2026-01-08\",\"amount\":-85.09,\"description\":\"CDAD.PROP.RESID.\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:33d886b9f5039adb7111d0fc60e9ca4ec50f159216896e58c58fd84d4f253ce9",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2026-01-06\",\"amount\":-2.4,\"description\":\"COM.PROP. C.C. MA\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:e3c9cdfdac211d4dd75e8bfdde90763fa75aee213d1e909c652e019a65cdf39c",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2026-01-03\",\"amount\":850,\"description\":\"TRANSF. A SU FAVOR\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:0df7086b015e79168a734505fa5b6f916084445e4edf4234ec954439c63e40c5",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2026-01-02\",\"amount\":-30,\"description\":\"PAGO TRANSFERENCIAS\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:42dcb23eaeb34b1543b97b0c452eab10f60b0f2235a0bf1cf85666b88506487c",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2026-01-01\",\"amount\":850,\"description\":\"MARIA GARCIA ARAU\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:b151b0ec0074b7006ee7f57cd9721457e585bed7cae589bb4e45a7a4948fb369",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2026-01-01\",\"amount\":-1303.8,\"description\":\"PRES.32505561816\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:4c00c6a3a36a88f7f990082cdbe1d6e89d4e1bdf519a15ba1c8eb635ff5e6e07",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-31\",\"amount\":-20,\"description\":\"DIGI SPAIN TELEC.\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:da1596ae93b9b3fcd4a2417abbd479216f63da7b5c716a001754e23adad2261b",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-27\",\"amount\":-19.95,\"description\":\"AVALON\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:9ffc7f2bd0efef39dca493edb8f6a3abfb7ff2760ba6d4239abf21fa211a6382",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-26\",\"amount\":-11.95,\"description\":\"HONG KONG BURGOS\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:42322f78a00e43f2fe071f90111e321e66b81e3092a21aeac18d7016243a8c16",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-26\",\"amount\":-34.98,\"description\":\"MI ALCAMPO MERCAD\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:0cc9f9facc5e6718186baa64ddb55e519616fe411ec3d6ebd0e7f53e202f3e76",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-23\",\"amount\":-4.4,\"description\":\"ALIMERKA BURGOS\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:f4f37ae81a83de517751e11b39902d3aaa007dc4dc7626e2afa4b54c2aa151f8",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-22\",\"amount\":-97.93,\"description\":\"0376 CC BURGOS\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:e4a9fdf9fcda93f5283d9bb07e46831df373e29fb8af5be3ee016fdae899fa75",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-22\",\"amount\":-62.3,\"description\":\"RESTAURANTE LA RA\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:9a80a1a20590670c1710d0c000207dca7ac8b6697405f1923722120513c097ac",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-19\",\"amount\":-13.96,\"description\":\"MERCADONA SAN AGU\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:d5993bbbb2f5b67054ef2cb86168b85504a1648ba834331464aece96ac549fdf",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-19\",\"amount\":-49.02,\"description\":\"MERCADONA SAN AGU\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:45d852a6473713ffbfc60d7bd57b4bf848b40c3ab91bbe51096ed399317beac4",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-16\",\"amount\":-19.38,\"description\":\"MERCADONA SAN AGU\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:790b3cd4994a638721b4920d68ac59b2271b5f2a02e727dbd123179bd4f8cffa",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-14\",\"amount\":-10.2,\"description\":\"100 MOMENTS SPAIN\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:6511eb2adc34d52f3aa4e5893e774e511525b4c0ff66aa5a8967f03d4c7d4e15",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-13\",\"amount\":-79.94,\"description\":\"BM SAN AGUSTIN\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:ba24ab4c7bb03c9ca7737ba09d82d7424990eec66766bcb31dfa01d883c2f345",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-13\",\"amount\":-42.19,\"description\":\"GC RE OCTOPUS EN.\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:97ec912ac47ee7ae460079b6b92097f581992597ea028e448ef31f01dd6d9d0c",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-12\",\"amount\":-24.45,\"description\":\"RUNNING LA VAGUAD\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:b176c03dbc742049580ff037016a863ed0661e295db31dcdf4f1434cefa50b10",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-10\",\"amount\":-15.81,\"description\":\"FERRETERIA REAL\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:c1438dfb174775db6dcff72fd92c33138877dc540defe92a9d487692aaa7bc8d",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-09\",\"amount\":-67.56,\"description\":\"MERCADONA SAN AGU\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:13dd77b0c472692059ce53dfba7ab48ad381bfd1806a8e40a7cb9e6e14507309",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-06\",\"amount\":-85.09,\"description\":\"CDAD.PROP.RESID.\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:0e7f3cfbaaba4fe9137003231dd7b5c053cce8664c956f37318d4a6d1c227eb3",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-02\",\"amount\":850,\"description\":\"TRANSF. A SU FAVOR\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:be4d2ed5d633484696e21114974e6aa840e73d2ee1aa39ce9570feb32ff3c4a7",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-01\",\"amount\":850,\"description\":\"MARIA GARCIA ARAU\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:fc375fd9c1ebaae85eb3e9a80260e45d321e74a923f1c12e1ab49f7fb81beec8",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-01\",\"amount\":-30,\"description\":\"PAGO TRANSFERENCIAS\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:cf31016c37af24e2d5ff862adaf464d06466f93274303fdec8a384da6855d3f3",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-12-01\",\"amount\":-1303.8,\"description\":\"PRES.32505561816\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:27f54d65cbaeffcacdf4cc0e8419abc5063f439c47869a35800b72a20aee645d",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-11-29\",\"amount\":-440,\"description\":\"THA SOFAS III\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:467d67eee7d2209e0864737921623528054c1b54471af7ed1a6e6c6161a24a91",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-11-28\",\"amount\":-20,\"description\":\"DIGI SPAIN TELEC.\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:59213f75cb61f9d86ca6e85f3874f03c0f4d7d3b1ff8549a8e2df6339d065951",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-11-27\",\"amount\":-37.02,\"description\":\"MERCADONA SAN AGU\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:233236ee2a46583bd46268ad281c5028919abc971397fcaac08991ea9de621cf",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"caixabank\",\"date\":\"2025-11-25\",\"amount\":-110.34,\"description\":\"LEROY MERLIN SSRR\",\"importedAt\":\"2026-02-01T13:25:03.061Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:894232e68ea30ee6272928f0f002dac4772d01b13ae95833c56bb525d36eb68e",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-28\",\"amount\":5,\"description\":\"BIZUM RECIBIDO\",\"importedAt\":\"2026-02-01T13:25:03.062Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:8e08fe7d5af31b61fd8ef5ef6dfcbb99497deff9db8550f71abb8367fa41b34a",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-26\",\"amount\":2495.02,\"description\":\"NOMINA\",\"importedAt\":\"2026-02-01T13:25:03.062Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:a2323729d7f3f2b3d0a2a977e0c199930386a2652981113c98c84c6b07987df2",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-26\",\"amount\":605.28,\"description\":\"NOMINA\",\"importedAt\":\"2026-02-01T13:25:03.062Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:b3a0adf750f083e4cdcf0de89886a6d0c8f5ce2b8939144a074a0fd21f85d296",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-24\",\"amount\":6.5,\"description\":\"BIZUM RECIBIDO\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:0cde11996895b995d7b01d6b3a998e973369c81e8f898437fe51e47e64ab6d4c",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-24\",\"amount\":10,\"description\":\"BIZUM RECIBIDO\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:bc02d99e8b3b0866647b398acf1ab10780bf069ec5b0a1bcb2e9ca77c419bf3a",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-23\",\"amount\":-150.48,\"description\":\"SP NAGUISA\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:fab2b0e5cc8549f19c3ef016e8005c5c4c970bb6402ad947ce69c22de1a43113",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-22\",\"amount\":-50.43,\"description\":\"COMPRA CON TARJETA\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:9cb2b8c4883c51e0fa68c64b159ba4df63c0e4f00e326aa4626e35ac36098ff6",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-22\",\"amount\":150,\"description\":\"DEVOLUCION COMPRA\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:44b5b3c3e4388b261d4ac46e2e9840b0e68a2b643bfcd415d3b030d349bec1ba",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-22\",\"amount\":-150,\"description\":\"REPSOL WAYLET\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:7db2358955cacad1c40b827aa99514ab4e6f66490d6d80a191b2eb8a40a738b3",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-22\",\"amount\":100,\"description\":\"BIZUM RECIBIDO\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:eccb33d2caa4db70634c5595626f94927c437fc943c69e18fe18ef608bba748c",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-20\",\"amount\":-15,\"description\":\"María García Arau\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:75e37b7678ba53b097f009f4c0f71655c2f3b6a385bba352f80342ea406294fd",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-19\",\"amount\":28.6,\"description\":\"BIZUM RECIBIDO\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:d5046ac21b24e71eb6da506561acdadbaba02734a38d1c68b63e327b9ca248be",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-19\",\"amount\":-57.2,\"description\":\"TELEENTRADAS BACA\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:5bdff284a32b18a9c314333391cdeb181fe808bde250ab976f2b9c7a0f853bd7",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-17\",\"amount\":-62.2,\"description\":\"PUNTO BLANCO\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:2a766ddbd4a073be9309b79172fa2c30a601ce34d360db25854ac85d2fff8e26",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-10\",\"amount\":-9.9,\"description\":\"PAULINE CASTRO RA\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:60a663097278129476eee0215f33e758e9049b7aebc64d75fe0167d9d913bdf0",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-09\",\"amount\":-80,\"description\":\"REVISTA 5W\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:b596838ebdbff1524536124c066870a7c47fe11f7e618d72375815b1e0baa24e",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-06\",\"amount\":100,\"description\":\"TRASPASO\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:6135e20a340cf95b881c6d2282046a2aeb7fa61211525f23a5b0c09a5813cda5",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-06\",\"amount\":-120,\"description\":\"BIZUM ENVIADO\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:4d311aa5691c8e3db571efcc1b2663c5de4b8900b35bf6b242b7aab675dd717c",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-06\",\"amount\":-10,\"description\":\"ASOC.ESPANOLA\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:27a271f1d6638f9f93b7c800c90d22abe66a23be905f05fc51ca883d36fd14e8",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-05\",\"amount\":-130,\"description\":\"THE WORKSHOP MADR\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:16b613877cd3e30c81506ab1d8e3e3310f16927061ba841274cf2de2f857f53a",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-05\",\"amount\":-48,\"description\":\"UNION GENERAL\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:1df8f5570550a1f284b302a9f539607e2e433c1f7bea1a49e37278cc8fcf8c73",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-02\",\"amount\":-900,\"description\":\"INDEXA MAS REN\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:29611811723c021b6154e3c0d70df8ecc568d1a143748fa794e058f2100ef3f2",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-02\",\"amount\":-600,\"description\":\"INDEXA MAS REN\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:6e3f86ef9cbeb4da7f4a703e8cca62d4cdd17f22c7c1104b8020d881c0d108d2",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2026-01-01\",\"amount\":-850,\"description\":\"PAGO TRASPASOS\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  },
+  {
+    "key": "import-hash:c02f3b589901f75d5e1ac2822b0f3e2a9a9a465e70ca72162850cef9bcf708eb",
+    "value": "{\"chatId\":\"-4639682607\",\"bankId\":\"imaginbank\",\"date\":\"2025-12-28\",\"amount\":-41.04,\"description\":\"GRUPOS MEDIA\",\"importedAt\":\"2026-02-01T13:25:03.063Z\"}",
+    "expiration_ttl": 31536000
+  }
+]

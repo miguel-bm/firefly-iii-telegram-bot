@@ -5,7 +5,6 @@ import type {
     ChatAgentState,
     ChatMessage,
     CreateTransactionInput,
-    QueryTransactionsInput,
     AgentResponse,
 } from "./types.js";
 import { FireflyClient, getCachedCategories, getCachedAssetAccountIds, getCachedTags, getCachedAssetAccounts } from "./tools/firefly.js";
@@ -18,11 +17,16 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         function: {
             name: "firefly_create_transaction",
             description:
-                "Create a new transaction in Firefly III. Use this for recording expenses, income, or transfers. Default type is 'withdrawal' for expenses.",
+                "Create a new transaction in Firefly III. Use for expenses (withdrawal), income (deposit), or transfers between accounts. Default type is 'withdrawal' for expenses.",
             strict: true,
             parameters: {
                 type: "object",
                 properties: {
+                    type: {
+                        type: ["string", "null"],
+                        enum: ["withdrawal", "deposit", "transfer", null],
+                        description: "Transaction type. 'withdrawal' for expenses (default), 'deposit' for income, 'transfer' for moving money between asset accounts. Use null for withdrawal.",
+                    },
                     date: {
                         type: "string",
                         description: "Transaction date in YYYY-MM-DD format. Use today if not specified.",
@@ -33,14 +37,31 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                     },
                     description: {
                         type: "string",
-                        description: "Transaction description (merchant name or note).",
+                        description: "Transaction description (merchant name for withdrawals, payer for deposits, or transfer note).",
                     },
                     category_name: {
                         type: ["string", "null"],
-                        description: "Category name. Should match existing categories when possible. Use null if unknown.",
+                        description: "Category name. Should match existing categories when possible. Use null if unknown. Not typically used for transfers.",
+                    },
+                    source_account_id: {
+                        type: ["string", "null"],
+                        description: "Source account ID. For withdrawals: your asset account (defaults to DEFAULT_ACCOUNT_ID). For transfers: the 'from' asset account. For deposits: null. Get IDs from firefly_get_accounts.",
+                    },
+                    destination_account_id: {
+                        type: ["string", "null"],
+                        description: "Destination account ID. For transfers: the 'to' asset account. For deposits: your asset account (defaults to DEFAULT_ACCOUNT_ID). For withdrawals: null. Get IDs from firefly_get_accounts.",
+                    },
+                    tags: {
+                        type: ["array", "null"],
+                        items: { type: "string" },
+                        description: "Array of tags to apply. Use null for default (telegram-bot tag will always be added).",
+                    },
+                    notes: {
+                        type: ["string", "null"],
+                        description: "Additional notes for the transaction.",
                     },
                 },
-                required: ["date", "amount", "description", "category_name"],
+                required: ["type", "date", "amount", "description", "category_name", "source_account_id", "destination_account_id", "tags", "notes"],
                 additionalProperties: false,
             },
         },
@@ -70,7 +91,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         function: {
             name: "firefly_update_transaction",
             description:
-                "Update an existing transaction in Firefly III. IMPORTANT: Always confirm changes with the user before calling this. Only include fields that need to be changed.",
+                "Update an existing transaction in Firefly III. Can change type (e.g., withdrawal to transfer), accounts, and all other fields. IMPORTANT: Always confirm changes with the user before calling this.",
             strict: true,
             parameters: {
                 type: "object",
@@ -78,6 +99,11 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                     transaction_id: {
                         type: "string",
                         description: "The ID of the transaction to update. Get this from firefly_query_transactions results.",
+                    },
+                    type: {
+                        type: ["string", "null"],
+                        enum: ["withdrawal", "deposit", "transfer", null],
+                        description: "New transaction type. Use to convert expense to transfer. Use null to keep current.",
                     },
                     date: {
                         type: ["string", "null"],
@@ -93,19 +119,27 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                     },
                     category_name: {
                         type: ["string", "null"],
-                        description: "New category name. Use null to keep current.",
+                        description: "New category name. Use null to keep current. Use empty string to remove category.",
+                    },
+                    source_account_id: {
+                        type: ["string", "null"],
+                        description: "New source account ID. Required when converting to transfer. Use null to keep current.",
+                    },
+                    destination_account_id: {
+                        type: ["string", "null"],
+                        description: "New destination account ID. Required when converting to transfer. Use null to keep current.",
                     },
                     tags: {
                         type: ["array", "null"],
                         items: { type: "string" },
-                        description: "New tags array. Use null to keep current.",
+                        description: "New tags array (replaces existing). Use null to keep current.",
                     },
                     notes: {
                         type: ["string", "null"],
                         description: "New notes. Use null to keep current.",
                     },
                 },
-                required: ["transaction_id", "date", "amount", "description", "category_name", "tags", "notes"],
+                required: ["transaction_id", "type", "date", "amount", "description", "category_name", "source_account_id", "destination_account_id", "tags", "notes"],
                 additionalProperties: false,
             },
         },
@@ -132,6 +166,10 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                         type: ["string", "null"],
                         description: "Filter by category name. Must match exactly from available categories. Use null to include all.",
                     },
+                    has_no_category: {
+                        type: ["boolean", "null"],
+                        description: "If true, only return transactions WITHOUT a category (uncategorized). Use for categorization review workflow. Use null to ignore this filter.",
+                    },
                     text_contains: {
                         type: ["string", "null"],
                         description: "Substring search in transaction descriptions (case-insensitive, NOT fuzzy). Use null for no text filter.",
@@ -144,6 +182,26 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                         type: ["string", "null"],
                         enum: ["withdrawal", "deposit", "transfer", null],
                         description: "Filter by transaction type. Use null to include all types.",
+                    },
+                    account_id: {
+                        type: ["string", "null"],
+                        description: "Filter by account ID (matches source OR destination). Use null for all accounts.",
+                    },
+                    source_account_name: {
+                        type: ["string", "null"],
+                        description: "Filter by source account name. Useful for finding expenses from specific account. Use null to ignore.",
+                    },
+                    destination_account_name: {
+                        type: ["string", "null"],
+                        description: "Filter by destination account name. Useful for finding transfers to specific account. Use null to ignore.",
+                    },
+                    amount_min: {
+                        type: ["number", "null"],
+                        description: "Minimum amount filter. Use null for no minimum.",
+                    },
+                    amount_max: {
+                        type: ["number", "null"],
+                        description: "Maximum amount filter. Use null for no maximum.",
                     },
                     aggregate_kind: {
                         type: ["string", "null"],
@@ -169,7 +227,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                         description: "Maximum transactions to fetch. Default 100. Use higher for comprehensive queries.",
                     },
                 },
-                required: ["date_from", "date_to", "category_name", "text_contains", "tag", "transaction_type", "aggregate_kind", "aggregate_group_by", "chart_type", "chart_title", "limit"],
+                required: ["date_from", "date_to", "category_name", "has_no_category", "text_contains", "tag", "transaction_type", "account_id", "source_account_name", "destination_account_name", "amount_min", "amount_max", "aggregate_kind", "aggregate_group_by", "chart_type", "chart_title", "limit"],
                 additionalProperties: false,
             },
         },
@@ -304,6 +362,111 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
             },
         },
     },
+    {
+        type: "function",
+        function: {
+            name: "firefly_get_transaction",
+            description:
+                "Get complete details of a single transaction by ID. Use before editing or deleting to show user what will be affected. Returns all fields including type, accounts, category, tags.",
+            strict: true,
+            parameters: {
+                type: "object",
+                properties: {
+                    transaction_id: {
+                        type: "string",
+                        description: "The transaction ID to fetch.",
+                    },
+                },
+                required: ["transaction_id"],
+                additionalProperties: false,
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "firefly_review_uncategorized",
+            description:
+                "Get a batch of uncategorized transactions for review. Returns transactions without categories, ordered by date descending. Use this to help user categorize transactions interactively.",
+            strict: true,
+            parameters: {
+                type: "object",
+                properties: {
+                    date_from: {
+                        type: ["string", "null"],
+                        description: "Start date (YYYY-MM-DD). Use null for no lower bound.",
+                    },
+                    date_to: {
+                        type: ["string", "null"],
+                        description: "End date (YYYY-MM-DD). Use null for no upper bound.",
+                    },
+                    account_id: {
+                        type: ["string", "null"],
+                        description: "Limit to specific account ID. Use null for all accounts.",
+                    },
+                    limit: {
+                        type: "number",
+                        description: "Maximum transactions to return. Default 10, max 50.",
+                    },
+                },
+                required: ["date_from", "date_to", "account_id", "limit"],
+                additionalProperties: false,
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "firefly_convert_to_transfer",
+            description:
+                "Convert an existing withdrawal (expense) to a transfer between two asset accounts. Use when user says an expense was actually a transfer to another account (e.g., savings, investment). IMPORTANT: Always confirm with user first.",
+            strict: true,
+            parameters: {
+                type: "object",
+                properties: {
+                    transaction_id: {
+                        type: "string",
+                        description: "The ID of the withdrawal transaction to convert.",
+                    },
+                    destination_account_id: {
+                        type: "string",
+                        description: "The destination asset account ID (where the money went to). Get from firefly_get_accounts.",
+                    },
+                    keep_category: {
+                        type: "boolean",
+                        description: "If true, keep the existing category. If false, remove category (transfers typically don't have categories).",
+                    },
+                },
+                required: ["transaction_id", "destination_account_id", "keep_category"],
+                additionalProperties: false,
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "firefly_bulk_categorize",
+            description:
+                "Assign a category to multiple transactions at once. Use after reviewing uncategorized transactions. IMPORTANT: Always list the transactions and confirm with user before calling.",
+            strict: true,
+            parameters: {
+                type: "object",
+                properties: {
+                    transaction_ids: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Array of transaction IDs to categorize.",
+                    },
+                    category_name: {
+                        type: "string",
+                        description: "Category name to assign. Must match an existing category.",
+                    },
+                },
+                required: ["transaction_ids", "category_name"],
+                additionalProperties: false,
+            },
+        },
+    },
 ];
 
 const SYSTEM_PROMPTS = {
@@ -337,8 +500,11 @@ REGLA CRÍTICA - SIEMPRE CONSULTAR PRIMERO:
 
 FORMATO DE RESPUESTA - MUY IMPORTANTE:
 - Sé CONCISO. No hagas preguntas de seguimiento como "¿Quieres consultar algo más?" o "¿Necesitas algo más?".
-- Para transacciones creadas, usa EXACTAMENTE este formato:
+- Para transacciones NUEVAS creadas, usa EXACTAMENTE este formato:
   "Registrado un gasto de [importe]€ con concepto "[descripción]" en la categoría *[categoría]*."
+- Para transacciones EDITADAS, usa este formato diferente:
+  "✓ Actualizada: [descripción] → *[categoría]*" (versión corta para listas)
+  o "Actualizada la transacción de [importe]€ "[descripción]" a categoría *[categoría]*." (versión completa)
 - El nombre de la categoría debe estar en negrita usando asteriscos: *Categoría*
 - Para consultas, responde solo con los datos solicitados, sin preguntas adicionales.
 
@@ -357,6 +523,16 @@ EDITAR Y ELIMINAR TRANSACCIONES:
 - Solo ejecuta la acción si el usuario responde afirmativamente (sí, ok, confirmo, adelante, etc.).
 - Para editar, usa firefly_update_transaction solo con los campos que cambian (deja null los demás).
 
+IMPORTANTE - EDICIONES EN LOTE:
+- Cuando el usuario confirma MÚLTIPLES ediciones a la vez, ejecuta TODAS las llamadas a firefly_update_transaction SIN responder entre medias.
+- Procesa todas las actualizaciones de golpe y luego responde UNA SOLA VEZ con un resumen.
+- NO generes un mensaje por cada edición individual - eso requeriría que el usuario envíe mensajes para continuar.
+- Ejemplo de respuesta tras ediciones en lote:
+  "✓ Actualizadas 3 transacciones:
+   - Supabase → *Telecom & IT*
+   - The Workshop Madrid → *Compras*
+   - Entradas Goyo Jiménez → *Ocio*"
+
 GRÁFICOS Y REPORTES:
 - Para gráficos de transacciones, usa firefly_query_transactions con chart_type (pie, bar, line, doughnut). Requiere aggregate_kind y aggregate_group_by.
 - Ejemplo: gastos por categoría este mes → chart_type="pie", aggregate_kind="sum", aggregate_group_by="category"
@@ -372,7 +548,29 @@ CUENTAS Y BALANCES:
 - Usa el parámetro period para la granularidad: 1D=diario, 1W=semanal, 1M=mensual, 1Y=anual.
 - Puedes generar gráficos de balance con chart_type="line" o "bar".
 - Ejemplo: "¿cómo ha evolucionado mi cuenta este mes?" → period="1D", chart_type="line"
-- Ejemplo: "¿cómo ha evolucionado mi cuenta este año?" → period="1M", chart_type="line"`;
+- Ejemplo: "¿cómo ha evolucionado mi cuenta este año?" → period="1M", chart_type="line"
+
+REVISAR TRANSACCIONES SIN CATEGORÍA:
+- Usa firefly_review_uncategorized para obtener transacciones sin categoría.
+- Presenta las transacciones al usuario una por una o en grupos pequeños.
+- Para cada transacción, pregunta qué categoría asignar o si debe ser una transferencia.
+- Usa firefly_update_transaction para categorizar individualmente.
+- Usa firefly_bulk_categorize para categorizar varias transacciones con la misma categoría (siempre lista y confirma primero).
+- El usuario puede decir "saltar" o "siguiente" para omitir una transacción.
+- Ejemplo de flujo: "Tengo 5 transacciones sin categoría. La primera es: €50 en 'Bizum Juan' del 15/01. ¿Qué categoría le asigno o es una transferencia?"
+
+CONVERTIR GASTO A TRANSFERENCIA:
+- Si el usuario dice que un gasto era en realidad una transferencia a otra cuenta (ahorros, inversión, etc.), usa firefly_convert_to_transfer.
+- Primero obtén las cuentas disponibles con firefly_get_accounts si no las conoces.
+- Muestra las opciones de cuenta destino y pregunta a cuál fue la transferencia.
+- Confirma antes de convertir: "¿Confirmas convertir el gasto de €X a transferencia hacia [cuenta]?"
+- Las transferencias normalmente no tienen categoría, así que usa keep_category=false a menos que el usuario indique lo contrario.
+
+CREAR TRANSFERENCIAS:
+- Para crear una transferencia entre cuentas, usa firefly_create_transaction con type="transfer".
+- Necesitas source_account_id (cuenta origen) y destination_account_id (cuenta destino).
+- Obtén los IDs de cuenta con firefly_get_accounts.
+- Ejemplo: "Transferí 500€ de mi cuenta principal a ahorros" → type="transfer", source_account_id=X, destination_account_id=Y`;
     },
     en: (categories: string[], tags: string[], accounts: { id: string; name: string }[], currency: string, timezone: string) => {
         const now = new Date().toLocaleString("en-US", { timeZone: timezone });
@@ -404,8 +602,11 @@ CRITICAL RULE - ALWAYS QUERY FIRST:
 
 RESPONSE FORMAT - VERY IMPORTANT:
 - Be CONCISE. Do NOT ask follow-up questions like "Would you like anything else?" or "Need anything more?".
-- For created transactions, use EXACTLY this format:
+- For NEW transactions created, use EXACTLY this format:
   "Recorded an expense of [amount]€ for "[description]" in category *[category]*."
+- For EDITED transactions, use this different format:
+  "✓ Updated: [description] → *[category]*" (short version for lists)
+  or "Updated transaction of [amount]€ "[description]" to category *[category]*." (full version)
 - Category name must be bold using asterisks: *Category*
 - For queries, respond only with the requested data, no additional questions.
 
@@ -424,6 +625,16 @@ EDIT AND DELETE TRANSACTIONS:
 - Only execute the action if the user responds affirmatively (yes, ok, confirm, go ahead, etc.).
 - To edit, use firefly_update_transaction with only the fields that change (leave null for others).
 
+IMPORTANT - BATCH EDITS:
+- When user confirms MULTIPLE edits at once, execute ALL firefly_update_transaction calls WITHOUT responding in between.
+- Process all updates in one go and then respond ONCE with a summary.
+- Do NOT generate a message for each individual edit - that would require the user to send messages to continue.
+- Example response after batch edits:
+  "✓ Updated 3 transactions:
+   - Supabase → *Telecom & IT*
+   - The Workshop Madrid → *Shopping*
+   - Goyo Jiménez Tickets → *Entertainment*"
+
 CHARTS AND REPORTS:
 - For transaction charts, use firefly_query_transactions with chart_type (pie, bar, line, doughnut). Requires aggregate_kind and aggregate_group_by.
 - Example: expenses by category this month → chart_type="pie", aggregate_kind="sum", aggregate_group_by="category"
@@ -439,7 +650,29 @@ ACCOUNTS AND BALANCES:
 - Use the period parameter for granularity: 1D=daily, 1W=weekly, 1M=monthly, 1Y=yearly.
 - You can generate balance charts with chart_type="line" or "bar".
 - Example: "how has my account evolved this month?" → period="1D", chart_type="line"
-- Example: "how has my account evolved this year?" → period="1M", chart_type="line"`;
+- Example: "how has my account evolved this year?" → period="1M", chart_type="line"
+
+REVIEW UNCATEGORIZED TRANSACTIONS:
+- Use firefly_review_uncategorized to get transactions without categories.
+- Present transactions to the user one by one or in small groups.
+- For each transaction, ask what category to assign or if it should be a transfer.
+- Use firefly_update_transaction to categorize individually.
+- Use firefly_bulk_categorize to categorize multiple transactions with the same category (always list and confirm first).
+- User can say "skip" or "next" to skip a transaction.
+- Example flow: "I found 5 uncategorized transactions. First one: €50 to 'Venmo John' on 01/15. What category should I assign, or is this a transfer?"
+
+CONVERT EXPENSE TO TRANSFER:
+- If user says an expense was actually a transfer to another account (savings, investment, etc.), use firefly_convert_to_transfer.
+- First get available accounts with firefly_get_accounts if you don't know them.
+- Show destination account options and ask which one received the transfer.
+- Confirm before converting: "Confirm converting the €X expense to a transfer to [account]?"
+- Transfers normally don't have categories, so use keep_category=false unless the user indicates otherwise.
+
+CREATE TRANSFERS:
+- To create a transfer between accounts, use firefly_create_transaction with type="transfer".
+- You need source_account_id (from account) and destination_account_id (to account).
+- Get account IDs with firefly_get_accounts.
+- Example: "I transferred €500 from my main account to savings" → type="transfer", source_account_id=X, destination_account_id=Y`;
     },
 };
 
@@ -568,14 +801,14 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
 
             // Agent loop - keep calling until no more tool calls
             let iterations = 0;
-            const maxIterations = 5;
+            const maxIterations = 10;
             let finalResponse = "";
 
             while (iterations < maxIterations) {
                 iterations++;
 
                 const response = await openai.chat.completions.create({
-                    model: "gpt-4.1-mini",
+                    model: "gpt-5-mini",
                     messages,
                     tools: TOOLS,
                     tool_choice: "auto",
@@ -613,10 +846,11 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
                                 type: args.type ?? "withdrawal",
                                 date: args.date,
                                 amount: args.amount,
-                                currency: args.currency,
                                 description: args.description,
                                 category_name: args.category_name,
                                 source_account_id: args.source_account_id,
+                                destination_account_id: args.destination_account_id,
+                                tags: args.tags,
                                 notes: args.notes,
                             };
 
@@ -624,6 +858,7 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
                             result = JSON.stringify({
                                 success: true,
                                 id: created.id,
+                                type: input.type,
                                 description: created.description,
                                 amount: input.amount,
                                 category: input.category_name,
@@ -637,18 +872,24 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
                         } else if (toolCall.function.name === "firefly_update_transaction") {
                             // Build updates object with only non-null values
                             const updates: {
+                                type?: "withdrawal" | "deposit" | "transfer";
                                 date?: string;
                                 amount?: number;
                                 description?: string;
                                 category_name?: string;
+                                source_id?: string;
+                                destination_id?: string;
                                 tags?: string[];
                                 notes?: string;
                             } = {};
 
+                            if (args.type !== null) updates.type = args.type;
                             if (args.date !== null) updates.date = args.date;
                             if (args.amount !== null) updates.amount = args.amount;
                             if (args.description !== null) updates.description = args.description;
                             if (args.category_name !== null) updates.category_name = args.category_name;
+                            if (args.source_account_id !== null) updates.source_id = args.source_account_id;
+                            if (args.destination_account_id !== null) updates.destination_id = args.destination_account_id;
                             if (args.tags !== null) updates.tags = args.tags;
                             if (args.notes !== null) updates.notes = args.notes;
 
@@ -666,9 +907,15 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
                             if (args.date_from) queryParts.push(`date_after:${args.date_from}`);
                             if (args.date_to) queryParts.push(`date_before:${args.date_to}`);
                             if (args.category_name) queryParts.push(`category_is:"${args.category_name}"`);
+                            if (args.has_no_category === true) queryParts.push(`has_no_category:true`);
                             if (args.tag) queryParts.push(`tag_is:"${args.tag}"`);
                             if (args.transaction_type) queryParts.push(`type:${args.transaction_type}`);
                             if (args.text_contains) queryParts.push(`description_contains:"${args.text_contains}"`);
+                            if (args.account_id) queryParts.push(`account_id:${args.account_id}`);
+                            if (args.source_account_name) queryParts.push(`source_account_is:"${args.source_account_name}"`);
+                            if (args.destination_account_name) queryParts.push(`destination_account_is:"${args.destination_account_name}"`);
+                            if (args.amount_min) queryParts.push(`amount_more:${args.amount_min}`);
+                            if (args.amount_max) queryParts.push(`amount_less:${args.amount_max}`);
 
                             const query = queryParts.length > 0 ? queryParts.join(" ") : "*";
                             const limit = args.limit ?? 100;
@@ -843,6 +1090,124 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
                                 const formatted = history.map((p) => `${p.date}: ${p.balance.toFixed(2)} ${currency}`);
                                 result = formatted.join("\n");
                             }
+                        } else if (toolCall.function.name === "firefly_get_transaction") {
+                            // Get single transaction details
+                            const tx = await firefly.getTransaction(args.transaction_id);
+                            result = JSON.stringify({
+                                id: tx.id,
+                                type: tx.type,
+                                date: tx.date,
+                                amount: tx.amount,
+                                description: tx.description,
+                                category: tx.category_name,
+                                source_id: tx.source_id,
+                                source_name: tx.source_name,
+                                destination_id: tx.destination_id,
+                                destination_name: tx.destination_name,
+                                tags: tx.tags,
+                                notes: tx.notes,
+                            }, null, 2);
+                        } else if (toolCall.function.name === "firefly_review_uncategorized") {
+                            // Get uncategorized transactions for review
+                            const queryParts: string[] = ["has_no_category:true"];
+                            if (args.date_from) queryParts.push(`date_after:${args.date_from}`);
+                            if (args.date_to) queryParts.push(`date_before:${args.date_to}`);
+                            if (args.account_id) queryParts.push(`account_id:${args.account_id}`);
+
+                            const limit = Math.min(args.limit ?? 10, 50);
+                            const query = queryParts.join(" ");
+                            const transactions = await firefly.searchTransactions(query, limit);
+
+                            // Format for review
+                            const txList = transactions.flatMap((t) =>
+                                t.attributes.transactions.map((split) => ({
+                                    id: t.id,
+                                    date: split.date,
+                                    amount: split.amount,
+                                    description: split.description,
+                                    type: split.type,
+                                    source: split.source_name,
+                                    destination: split.destination_name,
+                                    tags: split.tags,
+                                }))
+                            );
+
+                            result = JSON.stringify({
+                                count: txList.length,
+                                transactions: txList,
+                                message: txList.length > 0
+                                    ? (lang === "es"
+                                        ? `Encontré ${txList.length} transacciones sin categoría.`
+                                        : `Found ${txList.length} uncategorized transactions.`)
+                                    : (lang === "es"
+                                        ? "No hay transacciones sin categoría en el rango especificado."
+                                        : "No uncategorized transactions found in the specified range."),
+                            }, null, 2);
+                        } else if (toolCall.function.name === "firefly_convert_to_transfer") {
+                            // Convert expense to transfer
+                            // First get the existing transaction to find source account
+                            const existingTx = await firefly.getTransaction(args.transaction_id);
+
+                            if (existingTx.type !== "withdrawal") {
+                                result = JSON.stringify({
+                                    error: lang === "es"
+                                        ? `Esta transacción ya es de tipo "${existingTx.type}", no se puede convertir.`
+                                        : `This transaction is already of type "${existingTx.type}", cannot convert.`,
+                                });
+                            } else {
+                                // Update to transfer
+                                const updates: {
+                                    type: "transfer";
+                                    destination_id: string;
+                                    category_name?: string;
+                                } = {
+                                    type: "transfer",
+                                    destination_id: args.destination_account_id,
+                                };
+
+                                if (!args.keep_category) {
+                                    updates.category_name = ""; // Remove category
+                                }
+
+                                const updated = await firefly.updateTransaction(args.transaction_id, updates);
+                                result = JSON.stringify({
+                                    success: true,
+                                    id: updated.id,
+                                    description: updated.description,
+                                    message: lang === "es"
+                                        ? "Transacción convertida a transferencia."
+                                        : "Transaction converted to transfer.",
+                                });
+                            }
+                        } else if (toolCall.function.name === "firefly_bulk_categorize") {
+                            // Bulk categorize transactions
+                            const results: { id: string; success: boolean; error?: string }[] = [];
+
+                            for (const txId of args.transaction_ids) {
+                                try {
+                                    await firefly.updateTransaction(txId, { category_name: args.category_name });
+                                    results.push({ id: txId, success: true });
+                                } catch (err) {
+                                    results.push({
+                                        id: txId,
+                                        success: false,
+                                        error: err instanceof Error ? err.message : "Unknown error"
+                                    });
+                                }
+                            }
+
+                            const successCount = results.filter((r) => r.success).length;
+                            result = JSON.stringify({
+                                success: successCount === results.length,
+                                total: results.length,
+                                succeeded: successCount,
+                                failed: results.length - successCount,
+                                category: args.category_name,
+                                message: lang === "es"
+                                    ? `Categorizadas ${successCount} de ${results.length} transacciones como "${args.category_name}".`
+                                    : `Categorized ${successCount} of ${results.length} transactions as "${args.category_name}".`,
+                                details: results,
+                            }, null, 2);
                         } else {
                             result = JSON.stringify({ error: "Unknown tool" });
                         }

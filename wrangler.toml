@@ -41,6 +41,11 @@ new_sqlite_classes = ["ChatAgentDO"]
 binding = "CATEGORY_CACHE"
 id = "193a0c3a909d43b89b2e2b71564037cd"
 
+# KV namespace for import hash deduplication
+[[kv_namespaces]]
+binding = "IMPORT_HASHES"
+id = "d48b2421bb2b4242a7ba7b3e7a7acd3a"
+
 # Cron triggers
 [triggers]
 crons = [
