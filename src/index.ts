@@ -4,6 +4,7 @@ import type { Env } from "./types.js";
 import { ChatAgentDO } from "./agent.js";
 import { processMessage, getMessages, type AgentProxy } from "./bot.js";
 import { handleScheduled } from "./cron.js";
+import { importBankStatement, formatImportResult } from "./import/importer.js";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -82,6 +83,50 @@ app.post("/telegram/webhook", async (c) => {
         } catch (error) {
             console.error("Reset error:", error);
             await ctx.reply(lang === "es" ? "Error al resetear." : "Error resetting.");
+        }
+    });
+
+    // Handle document uploads (bank statements)
+    bot.on("message:document", async (ctx) => {
+        const document = ctx.message.document;
+        if (!document) return;
+
+        const fileName = document.file_name ?? "unknown";
+        const ext = fileName.toLowerCase().split(".").pop();
+
+        // Only handle supported file types
+        if (!["csv", "xls", "xlsx"].includes(ext ?? "")) {
+            return; // Let it fall through to regular message handler
+        }
+
+        try {
+            await ctx.replyWithChatAction("typing");
+
+            // Download the file from Telegram
+            const file = await ctx.api.getFile(document.file_id);
+            const fileUrl = `https://api.telegram.org/file/bot${env.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
+            const response = await fetch(fileUrl);
+
+            if (!response.ok) {
+                throw new Error(`Failed to download file: ${response.status}`);
+            }
+
+            const buffer = await response.arrayBuffer();
+
+            // Import the bank statement
+            const chatId = String(ctx.chat?.id ?? "");
+            const result = await importBankStatement(buffer, fileName, env, { chatId });
+
+            // Format and send result
+            const message = formatImportResult(result, lang);
+            await ctx.reply(message);
+        } catch (error) {
+            console.error("Import error:", error);
+            const errorMsg = error instanceof Error ? error.message : "Unknown error";
+            const response = lang === "es"
+                ? `❌ Error importando archivo: ${errorMsg}`
+                : `❌ Error importing file: ${errorMsg}`;
+            await ctx.reply(response);
         }
     });
 

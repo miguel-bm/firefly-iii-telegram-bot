@@ -4,6 +4,7 @@ import type {
     FireflySearchResult,
     CreateTransactionInput,
     FireflyTag,
+    TransactionDetail,
 } from "../types.js";
 
 export class FireflyClient {
@@ -83,37 +84,39 @@ export class FireflyClient {
         // Always add "telegram-bot" tag to identify transactions created by this bot
         const tags = [...(input.tags ?? []), "telegram-bot"];
 
+        // Build transaction based on type
+        const transaction: Record<string, unknown> = {
+            type: txType,
+            date: input.date,
+            amount: String(input.amount),
+            description: input.description,
+            currency_code: input.currency ?? env.DEFAULT_CURRENCY,
+            category_name: input.category_name ?? undefined,
+            budget_id: input.budget_id,
+            tags,
+            notes: input.notes,
+        };
+
+        if (txType === "withdrawal") {
+            // Withdrawal: source = your asset account, destination = merchant/expense account (by name)
+            transaction.source_id = input.source_account_id ?? env.DEFAULT_ACCOUNT_ID;
+            transaction.destination_name = input.description; // Use description as merchant name
+        } else if (txType === "deposit") {
+            // Deposit: source = revenue account (by name), destination = your asset account
+            transaction.source_name = input.description; // Use description as payer name
+            transaction.destination_id = input.destination_account_id ?? env.DEFAULT_ACCOUNT_ID;
+        } else if (txType === "transfer") {
+            // Transfer: both source and destination are asset accounts (by ID)
+            transaction.source_id = input.source_account_id ?? env.DEFAULT_ACCOUNT_ID;
+            transaction.destination_id = input.destination_account_id;
+            // For transfers, don't use destination_name - we need the actual account ID
+        }
+
         const payload = {
             error_if_duplicate_hash: false,
             apply_rules: true,
             fire_webhooks: true,
-            transactions: [
-                {
-                    type: txType,
-                    date: input.date,
-                    amount: String(input.amount),
-                    description: input.description,
-                    currency_code: input.currency ?? env.DEFAULT_CURRENCY,
-                    category_name: input.category_name ?? undefined,
-                    // For withdrawals: source = your account, destination = merchant name
-                    source_id:
-                        txType === "withdrawal"
-                            ? input.source_account_id ?? env.DEFAULT_ACCOUNT_ID
-                            : undefined,
-                    destination_name:
-                        txType === "withdrawal"
-                            ? input.description // Use description as merchant/destination name
-                            : undefined,
-                    // For deposits: destination = your account
-                    destination_id:
-                        txType === "deposit"
-                            ? input.destination_account_id ?? env.DEFAULT_ACCOUNT_ID
-                            : undefined,
-                    budget_id: input.budget_id,
-                    tags,
-                    notes: input.notes,
-                },
-            ],
+            transactions: [transaction],
         };
 
         interface CreateResponse {
@@ -139,19 +142,145 @@ export class FireflyClient {
         return this.searchTransactions("*", limit);
     }
 
+    // Create transaction with duplicate hash checking (for imports)
+    async createTransactionWithDuplicateCheck(
+        input: CreateTransactionInput,
+        env: Env
+    ): Promise<{ id: string; description: string; isDuplicate: boolean }> {
+        const txType = input.type ?? "withdrawal";
+        const tags = [...(input.tags ?? [])];
+
+        const payload = {
+            error_if_duplicate_hash: true, // Enable duplicate detection
+            apply_rules: true,
+            fire_webhooks: true,
+            transactions: [
+                {
+                    type: txType,
+                    date: input.date,
+                    amount: String(input.amount),
+                    description: input.description,
+                    currency_code: input.currency ?? env.DEFAULT_CURRENCY,
+                    category_name: input.category_name ?? undefined,
+                    source_id:
+                        txType === "withdrawal"
+                            ? input.source_account_id ?? env.DEFAULT_ACCOUNT_ID
+                            : undefined,
+                    destination_name:
+                        txType === "withdrawal"
+                            ? input.description
+                            : undefined,
+                    destination_id:
+                        txType === "deposit"
+                            ? input.destination_account_id ?? env.DEFAULT_ACCOUNT_ID
+                            : undefined,
+                    source_name:
+                        txType === "deposit"
+                            ? input.description
+                            : undefined,
+                    budget_id: input.budget_id,
+                    tags,
+                    notes: input.notes,
+                },
+            ],
+        };
+
+        interface CreateResponse {
+            data: {
+                id: string;
+                attributes: { transactions: { description: string }[] };
+            };
+        }
+
+        try {
+            const response = await this.request<CreateResponse>("/transactions", {
+                method: "POST",
+                body: JSON.stringify(payload),
+            });
+
+            return {
+                id: response.data.id,
+                description: response.data.attributes.transactions[0]?.description ?? "",
+                isDuplicate: false,
+            };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "";
+            // Firefly returns 422 with "duplicate" message for hash duplicates
+            if (message.includes("Duplicate") || message.includes("duplicate")) {
+                return { id: "", description: input.description, isDuplicate: true };
+            }
+            throw error;
+        }
+    }
+
+    // Get transactions for a specific account and date range (for duplicate checking)
+    async getTransactionsForAccount(
+        accountId: string,
+        startDate: string,
+        endDate: string
+    ): Promise<FireflySearchResult[]> {
+        // Use search with account filter and date range
+        const query = `account_id:${accountId} date_after:${startDate} date_before:${endDate}`;
+        return this.searchTransactions(query, 500); // High limit for import checking
+    }
+
     async deleteTransaction(id: string): Promise<void> {
         await this.request(`/transactions/${id}`, {
             method: "DELETE",
         });
     }
 
+    async getTransaction(id: string): Promise<TransactionDetail> {
+        interface TransactionResponse {
+            data: {
+                id: string;
+                attributes: {
+                    transactions: Array<{
+                        type: string;
+                        date: string;
+                        amount: string;
+                        description: string;
+                        category_name?: string | null;
+                        source_id?: string;
+                        source_name?: string;
+                        destination_id?: string;
+                        destination_name?: string;
+                        tags?: string[];
+                        notes?: string | null;
+                    }>;
+                };
+            };
+        }
+        const response = await this.request<TransactionResponse>(`/transactions/${id}`);
+        const tx = response.data.attributes.transactions[0];
+        if (!tx) throw new Error(`Transaction ${id} not found`);
+
+        return {
+            id: response.data.id,
+            type: tx.type as "withdrawal" | "deposit" | "transfer",
+            date: tx.date,
+            amount: tx.amount,
+            description: tx.description,
+            category_name: tx.category_name ?? null,
+            source_id: tx.source_id,
+            source_name: tx.source_name,
+            destination_id: tx.destination_id,
+            destination_name: tx.destination_name,
+            tags: tx.tags ?? [],
+            notes: tx.notes ?? null,
+        };
+    }
+
     async updateTransaction(
         id: string,
         updates: {
+            type?: "withdrawal" | "deposit" | "transfer";
             date?: string;
             amount?: number;
             description?: string;
             category_name?: string;
+            source_id?: string;
+            destination_id?: string;
             tags?: string[];
             notes?: string;
         }
@@ -159,10 +288,13 @@ export class FireflyClient {
         // Build the update payload - only include non-undefined fields
         const transactionUpdate: Record<string, unknown> = {};
 
+        if (updates.type !== undefined) transactionUpdate.type = updates.type;
         if (updates.date !== undefined) transactionUpdate.date = updates.date;
         if (updates.amount !== undefined) transactionUpdate.amount = String(updates.amount);
         if (updates.description !== undefined) transactionUpdate.description = updates.description;
         if (updates.category_name !== undefined) transactionUpdate.category_name = updates.category_name;
+        if (updates.source_id !== undefined) transactionUpdate.source_id = updates.source_id;
+        if (updates.destination_id !== undefined) transactionUpdate.destination_id = updates.destination_id;
         if (updates.tags !== undefined) transactionUpdate.tags = updates.tags;
         if (updates.notes !== undefined) transactionUpdate.notes = updates.notes;
 

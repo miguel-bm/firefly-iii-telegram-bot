@@ -7,6 +7,7 @@ export interface Env {
 
     // KV
     CATEGORY_CACHE: KVNamespace;
+    IMPORT_HASHES: KVNamespace;
 
     // Environment variables
     DEFAULT_CURRENCY: string;
@@ -18,6 +19,9 @@ export interface Env {
     // Cron job settings
     ENABLE_MONTHLY_REPORT: string;       // "true" or "false"
     BANK_IMPORT_REMINDER_DAYS: string;   // Number of days
+
+    // Import settings
+    IMPORT_HASH_TTL_DAYS?: string;       // TTL for import hash cache (default: 365 days)
 
     // Secrets
     TELEGRAM_BOT_TOKEN: string;
@@ -134,5 +138,21 @@ export interface QueryTransactionsInput {
 export interface AgentResponse {
     text: string;
     chartUrl?: string;
+}
+
+// Detailed transaction info for single fetch
+export interface TransactionDetail {
+    id: string;
+    type: "withdrawal" | "deposit" | "transfer";
+    date: string;
+    amount: string;
+    description: string;
+    category_name: string | null;
+    source_id?: string;
+    source_name?: string;
+    destination_id?: string;
+    destination_name?: string;
+    tags: string[];
+    notes: string | null;
 }
 

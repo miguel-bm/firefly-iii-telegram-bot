@@ -8,6 +8,11 @@ A personal Telegram bot for tracking expenses and querying finances using Firefl
 - **Voice messages**: Send voice notes that get transcribed and processed
 - **Smart categorization**: Uses your existing Firefly III categories
 - **Query your finances**: "How much did I spend on food this month?"
+- **Visual charts**: Generate pie, bar, and line charts of your spending
+- **Report links**: Get direct links to Firefly III web reports
+- **Edit & delete transactions**: Modify or remove transactions via chat
+- **Account balances**: Query current balances and balance history
+- **Scheduled reminders**: Monthly reports and bank import reminders
 
 ## Setup
 
@@ -50,14 +55,19 @@ wrangler secret put FIREFLY_API_TOKEN
 wrangler secret put OPENAI_API_KEY
 ```
 
-### 4. Configure defaults
+### 4. Configure settings
 
-Edit `wrangler.toml` to set:
+Edit `wrangler.toml`:
 
 ```toml
 [vars]
-DEFAULT_CURRENCY = "EUR"  # Your preferred currency
-DEFAULT_ACCOUNT_ID = "1"  # Your cash account ID from Firefly III
+DEFAULT_CURRENCY = "EUR"              # Your preferred currency
+DEFAULT_ACCOUNT_ID = "1"              # Your cash account ID from Firefly III
+BOT_LANGUAGE = "es"                   # "es" for Spanish, "en" for English
+BOT_TIMEZONE = "Europe/Madrid"        # Your timezone
+MAX_HISTORY_MESSAGES = "20"           # Conversation memory limit
+ENABLE_MONTHLY_REPORT = "true"        # Send monthly report on 1st of month
+BANK_IMPORT_REMINDER_DAYS = "10"      # Days without imports before reminder
 ```
 
 ### 5. Deploy
@@ -90,16 +100,43 @@ Note: For local development, you'll need to use a tunnel (like ngrok) to receive
 
 Just send messages to your bot:
 
+### Recording Transactions
 - **Add expenses**: "Coffee 3.50", "50€ groceries at Lidl"
 - **Add income**: "Received 100€ salary"
-- **Query spending**: "How much did I spend this month?", "Show spending by category"
+
+### Querying Data
+- **Spending queries**: "How much did I spend this month?"
+- **Category breakdown**: "Show spending by category"
 - **Voice messages**: Send voice notes describing your transactions
+
+### Charts & Reports
+- **Charts**: "Show me a pie chart of expenses by category this month"
+- **Trends**: "Show a line chart of my spending by week"
+- **Reports**: "Give me the report link for December"
+
+### Account Balances
+- **Current balances**: "What are my account balances?"
+- **Balance history**: "How has my savings account evolved this year?"
+
+### Editing Transactions
+- **Delete**: "Delete my last transaction at Mercadona"
+- **Edit**: "Change the category of my last expense to Restaurants"
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Welcome message |
+| `/help` | Usage instructions |
+| `/reset` | Clear conversation history |
 
 ## Architecture
 
 - **Runtime**: Cloudflare Workers
 - **Bot Framework**: grammY
 - **Web Framework**: Hono
-- **State**: Cloudflare Durable Objects (Agents)
+- **State**: Cloudflare Durable Objects (Agents SDK)
+- **Cache**: Cloudflare KV
 - **LLM**: OpenAI GPT-4.1-mini with function calling
 - **STT**: OpenAI gpt-4o-mini-transcribe
+- **Charts**: QuickChart.io

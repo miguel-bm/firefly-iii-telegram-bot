@@ -22,6 +22,12 @@ Finance backend (Firefly III API)
 Voice
 	•	Telegram voice/audio → download file → OpenAI audio/transcriptions with gpt-4o-mini-transcribe → send to agent as if it was a text message
 
+Bank Statement Import
+	•	Upload Excel (.xlsx, .xls) or CSV directly to Telegram
+	•	Auto-detection identifies bank (BBVA, CaixaBank, ImaginBank) by file content
+	•	Parses bank-specific formats and creates transactions via Firefly API
+	•	No LLM calls required - pure deterministic parsing
+
 Auth hardening (concrete, minimal)
   1.	Telegram webhook secret header
 	•	When you call setWebhook, set a secret token; on every update Telegram includes X-Telegram-Bot-Api-Secret-Token and you verify it.
@@ -95,9 +101,10 @@ Through Cloudflare Agents (https://developers.cloudflare.com/agents/?utm_content
 
 
 Minimal code organization (practical)
-	•	src/index.ts — Hono app + webhook route + grammY webhookCallback
+	•	src/index.ts — Hono app + webhook route + grammY webhookCallback + document handler
 	•	src/bot.ts — grammY bot, commands, default NL handler
-	•	src/agent.ts — Cloudflare Agent class, state shape, “runAgentTurn()”
+	•	src/agent.ts — Cloudflare Agent class, state shape, "runAgentTurn()"
 	•	src/tools/firefly.ts — Firefly client + tool implementations
 	•	src/tools/stt.ts — Telegram file download + OpenAI transcription
 	•	src/query/aggregate.ts — local aggregations/grouping for lightweight query engine
+	•	src/import/ — Bank statement import module (detector, parsers, importer)

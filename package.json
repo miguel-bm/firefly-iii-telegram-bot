@@ -16,7 +16,8 @@
     "agents": "^0.0.92",
     "grammy": "^1.38.4",
     "hono": "^4.11.3",
-    "openai": "^6.15.0"
+    "openai": "^6.15.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^25.0.3",
