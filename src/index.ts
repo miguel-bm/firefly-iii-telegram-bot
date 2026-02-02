@@ -372,6 +372,40 @@ app.get("/api/accounts", webAppAuth, async (c) => {
     }
 });
 
+// Get all categories
+app.get("/api/categories", webAppAuth, async (c) => {
+    try {
+        const client = new FireflyClient(c.env);
+        const categories = await client.getCategories();
+        return c.json({
+            categories: categories.map((cat) => ({
+                id: cat.id,
+                name: cat.name,
+            })),
+        });
+    } catch (error) {
+        console.error("API error:", error);
+        return c.json({ error: "Failed to fetch categories" }, 500);
+    }
+});
+
+// Get all tags
+app.get("/api/tags", webAppAuth, async (c) => {
+    try {
+        const client = new FireflyClient(c.env);
+        const tags = await client.getTags();
+        return c.json({
+            tags: tags.map((t) => ({
+                id: t.id,
+                tag: t.tag,
+            })),
+        });
+    } catch (error) {
+        console.error("API error:", error);
+        return c.json({ error: "Failed to fetch tags" }, 500);
+    }
+});
+
 // Get income/expense summary for a period
 app.get("/api/summary", webAppAuth, async (c) => {
     try {
@@ -437,6 +471,33 @@ app.put("/api/transactions/:id", webAppAuth, async (c) => {
     } catch (error) {
         console.error("API error:", error);
         return c.json({ error: "Failed to update transaction" }, 500);
+    }
+});
+
+// Create a new transaction (for quick expense entry)
+app.post("/api/transactions", webAppAuth, async (c) => {
+    try {
+        const client = new FireflyClient(c.env);
+        const body = await c.req.json();
+        const { amount, description, category, tags, date, sourceAccount } = body;
+
+        // Default to the configured default account if no source specified
+        const sourceAccountId = sourceAccount || c.env.DEFAULT_ACCOUNT_ID;
+
+        const result = await client.createTransaction({
+            type: "withdrawal",
+            amount: parseFloat(amount),
+            description,
+            date: date || getToday(),
+            source_account_id: sourceAccountId,
+            category_name: category || undefined,
+            tags: tags || [],
+        }, c.env);
+
+        return c.json({ success: true, transaction: result });
+    } catch (error) {
+        console.error("API error:", error);
+        return c.json({ error: "Failed to create transaction" }, 500);
     }
 });
 
