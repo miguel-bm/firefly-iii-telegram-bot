@@ -18,10 +18,13 @@ export interface Env {
     BOT_LANGUAGE: "es" | "en";
     BOT_TIMEZONE: string;
     MAX_HISTORY_MESSAGES: string;
-    
+
     // Cron job settings
     ENABLE_MONTHLY_REPORT: string;       // "true" or "false"
     BANK_IMPORT_REMINDER_DAYS: string;   // Number of days
+
+    // Web App
+    DASHBOARD_WEBAPP_URL?: string;                 // Direct Mini App link (e.g., https://t.me/BotUsername/dashboard)
 
     // Import settings
     IMPORT_HASH_TTL_DAYS?: string;       // TTL for import hash cache (default: 365 days)
