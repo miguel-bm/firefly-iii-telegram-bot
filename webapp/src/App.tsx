@@ -1,7 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
-  LayoutDashboard,
-  Landmark,
   Search,
   X,
   SlidersHorizontal,
@@ -15,6 +13,10 @@ import { CategoryChart } from "./components/ExpenseChart";
 import { TransactionList } from "./components/TransactionList";
 import { TransactionDetail } from "./components/TransactionDetail";
 import { AccountsPage } from "./components/AccountsPage";
+import { CategorizationWizard } from "./components/CategorizationWizard";
+import { SpendingAnalysis } from "./components/SpendingAnalysis";
+import { BottomNav } from "./components/BottomNav";
+import { AddExpenseModal } from "./components/AddExpenseModal";
 import { useTelegram } from "./hooks/useTelegram";
 
 export interface Transaction {
@@ -66,7 +68,7 @@ interface CategoryTransactionData {
   category?: string | null;
 }
 
-type Page = "dashboard" | "accounts";
+type Page = "dashboard" | "accounts" | "wizard" | "analysis";
 
 // Helper to get month name in Spanish
 function getMonthName(date: Date): string {
@@ -223,6 +225,9 @@ function App() {
 
   // Detail view
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+
+  // Quick action modals
+  const [showAddExpense, setShowAddExpense] = useState(false);
 
   const periodOptions = useMemo(() => getPeriodOptions(customDateStart, customDateEnd), [customDateStart, customDateEnd]);
   const selectedPeriod = periodOptions.find((p) => p.id === selectedPeriodId) || periodOptions[1];
@@ -501,6 +506,42 @@ function App() {
     }
   };
 
+  // Handle adding new expense
+  const handleAddExpense = async (expense: {
+    amount: number;
+    description: string;
+    category: string;
+    tags: string[];
+    date: string;
+  }) => {
+    try {
+      const res = await fetch("/api/transactions", {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(expense),
+      });
+
+      if (!res.ok) throw new Error("Error al crear");
+
+      // Refresh data
+      await Promise.all([fetchTransactions(), fetchPeriodData()]);
+      webApp?.HapticFeedback?.notificationOccurred("success");
+      return true;
+    } catch (err) {
+      console.error("Create error:", err);
+      webApp?.HapticFeedback?.notificationOccurred("error");
+      return false;
+    }
+  };
+
+  // Handle quick actions from BottomNav
+  const handleQuickAction = (action: "add-expense" | "categorize") => {
+    if (action === "add-expense") {
+      setShowAddExpense(true);
+    }
+    // categorize is handled by BottomNav directly via onNavigate
+  };
+
   // Transaction detail view
   if (selectedTransaction) {
     return (
@@ -520,6 +561,28 @@ function App() {
         assets={assets}
         liabilities={liabilities}
         loading={loading}
+        colorScheme={colorScheme}
+        initData={initData}
+        onNavigate={setCurrentPage}
+      />
+    );
+  }
+
+  // Categorization Wizard page
+  if (currentPage === "wizard") {
+    return (
+      <CategorizationWizard
+        colorScheme={colorScheme}
+        initData={initData}
+        onNavigate={setCurrentPage}
+      />
+    );
+  }
+
+  // Spending Analysis page
+  if (currentPage === "analysis") {
+    return (
+      <SpendingAnalysis
         colorScheme={colorScheme}
         initData={initData}
         onNavigate={setCurrentPage}
@@ -853,22 +916,19 @@ function App() {
       </div>
 
       {/* Bottom navigation */}
-      <nav className="bottom-nav">
-        <button
-          className="nav-item active"
-          onClick={() => setCurrentPage("dashboard")}
-        >
-          <LayoutDashboard size={20} className="nav-item-icon" />
-          <span className="nav-item-label">Dashboard</span>
-        </button>
-        <button
-          className="nav-item"
-          onClick={() => setCurrentPage("accounts")}
-        >
-          <Landmark size={20} className="nav-item-icon" />
-          <span className="nav-item-label">Cuentas</span>
-        </button>
-      </nav>
+      <BottomNav
+        currentPage={currentPage}
+        onNavigate={setCurrentPage}
+        onQuickAction={handleQuickAction}
+      />
+
+      {/* Add Expense Modal */}
+      <AddExpenseModal
+        isOpen={showAddExpense}
+        onClose={() => setShowAddExpense(false)}
+        onSubmit={handleAddExpense}
+        initData={initData}
+      />
     </div>
   );
 }
