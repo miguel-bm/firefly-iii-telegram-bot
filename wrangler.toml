@@ -22,6 +22,10 @@ MAX_HISTORY_MESSAGES = "20"   # Number of messages to keep in memory
 ENABLE_MONTHLY_REPORT = "true"           # Send monthly report link on 1st of each month
 BANK_IMPORT_REMINDER_DAYS = "10"         # Remind if no bank imports in N days
 
+# Web App (dashboard) - Use t.me direct Mini App link format
+# Set up via BotFather: /newapp -> select bot -> enter webapp URL -> get short name
+# Set via: wrangler secret put DASHBOARD_WEBAPP_URL
+
 # Secrets (set via `wrangler secret put <NAME>`):
 # - TELEGRAM_BOT_TOKEN
 # - TELEGRAM_WEBHOOK_SECRET

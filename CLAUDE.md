@@ -80,6 +80,7 @@ Account IDs hardcoded in `importer.ts:16-20` - may need env vars.
 ### Secrets (wrangler secret put)
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_ALLOWED_CHAT_ID`
 - `FIREFLY_API_URL`, `FIREFLY_API_TOKEN`, `OPENAI_API_KEY`
+- `DASHBOARD_WEBAPP_URL` - Direct Mini App link (e.g., `https://t.me/BotUsername/dashboard`)
 
 ## Conventions
 
@@ -149,6 +150,25 @@ Alternative: Use /setmenubutton command directly:
 ```
  
 After setup, users will see a "Dashboard" button next to the message input in your bot's chat. Tapping it opens the Web App.
+
+**Note:** The menu button doesn't work in group chats. Use `/dashboard` command instead.
+
+### Mini App Setup (for /dashboard command)
+
+The `/dashboard` command requires a Mini App link. Set it up via BotFather:
+
+```
+1. Send /newapp to @BotFather
+2. Select your bot
+3. Enter title: Dashboard
+4. Enter description (or /empty)
+5. Upload a 640x360 photo (or /empty)
+6. Upload a GIF demo (or /empty)
+7. Enter webapp URL: https://your-worker.workers.dev
+8. Choose short name: dashboard
+```
+
+This creates a link like `https://t.me/YourBotUsername/dashboard`. Set this as `DASHBOARD_WEBAPP_URL` in wrangler.toml.
  
 ### Development
  

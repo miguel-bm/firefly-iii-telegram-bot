@@ -49,6 +49,8 @@ const MESSAGES = {
             '• "Mostrar gastos por categoría este mes"\n' +
             '• "Buscar transacciones en Amazon"\n\n' +
             "¡También puedes enviar mensajes de voz!",
+        dashboardButton: "📊 Abrir Dashboard",
+        dashboardNoUrl: "URL del dashboard no configurada.",
     },
     en: {
         voiceError: "Sorry, I couldn't transcribe that voice message.",
@@ -72,6 +74,8 @@ const MESSAGES = {
             '• "Show spending by category this month"\n' +
             '• "Find transactions at Amazon"\n\n' +
             "You can also send voice messages!",
+        dashboardButton: "📊 Open Dashboard",
+        dashboardNoUrl: "Dashboard URL not configured.",
     },
 };
 
