@@ -1,5 +1,7 @@
 # CLAUDE.md - Project Context for Claude Code
 
+> For end-user documentation, setup instructions, and contribution guidelines, see [README.md](README.md).
+
 ## Project Overview
 
 Telegram bot for [Firefly III](https://www.firefly-iii.org/) personal finance tracking. Natural language expense logging, queries, charts, and bank statement imports.
