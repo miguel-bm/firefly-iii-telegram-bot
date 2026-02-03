@@ -61,7 +61,7 @@ export function BottomNav({ currentPage, onNavigate, onQuickAction }: BottomNavP
         />
       )}
 
-      {/* Quick actions menu - positioned above FAB on the left */}
+      {/* Quick actions menu - positioned above FAB on the right */}
       <div className={`quick-actions-menu ${showQuickActions ? "open" : ""}`}>
         {QUICK_ACTIONS.map((action, index) => (
           <button
@@ -72,28 +72,18 @@ export function BottomNav({ currentPage, onNavigate, onQuickAction }: BottomNavP
               transitionDelay: showQuickActions ? `${index * 50}ms` : "0ms",
             }}
           >
+            <span className="quick-action-label">{action.label}</span>
             <div
               className="quick-action-icon"
               style={{ backgroundColor: action.color }}
             >
               {action.icon}
             </div>
-            <span className="quick-action-label">{action.label}</span>
           </button>
         ))}
       </div>
 
-      {/* FAB button - positioned on the left */}
-      <div className="fab-container-left">
-        <button
-          className={`fab-button ${showQuickActions ? "active" : ""}`}
-          onClick={() => setShowQuickActions(!showQuickActions)}
-        >
-          {showQuickActions ? <X size={24} /> : <Plus size={24} />}
-        </button>
-      </div>
-
-      {/* Bottom navigation */}
+      {/* Bottom navigation with integrated FAB */}
       <nav className="bottom-nav-new">
         <button
           className={`nav-item-new ${currentPage === "dashboard" ? "active" : ""}`}
@@ -118,6 +108,16 @@ export function BottomNav({ currentPage, onNavigate, onQuickAction }: BottomNavP
           <Landmark size={22} />
           <span>Cuentas</span>
         </button>
+
+        {/* FAB button - half-inserted on right side */}
+        <div className="fab-container-right">
+          <button
+            className={`fab-button ${showQuickActions ? "active" : ""}`}
+            onClick={() => setShowQuickActions(!showQuickActions)}
+          >
+            {showQuickActions ? <X size={24} /> : <Plus size={24} />}
+          </button>
+        </div>
       </nav>
     </>
   );
