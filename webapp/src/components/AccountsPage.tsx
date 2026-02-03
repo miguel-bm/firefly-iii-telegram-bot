@@ -29,7 +29,7 @@ import type { ReactNode } from "react";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Filler);
 
-type TimeRange = "1M" | "3M" | "6M" | "1Y" | "ALL";
+type TimeRange = "1M" | "3M" | "6M" | "1Y" | "ALL" | "CUSTOM";
 
 const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
   { value: "1M", label: "1M" },
@@ -37,6 +37,7 @@ const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
   { value: "6M", label: "6M" },
   { value: "1Y", label: "1A" },
   { value: "ALL", label: "Todo" },
+  { value: "CUSTOM", label: "Otro" },
 ];
 
 interface AccountsPageProps {
@@ -60,7 +61,11 @@ interface NetWorthPoint {
   netWorth: number;
 }
 
-function getDateRangeForTimeRange(range: TimeRange): { start: Date; end: Date } {
+function getDateRangeForTimeRange(range: TimeRange, customStart?: string, customEnd?: string): { start: Date; end: Date } {
+  if (range === "CUSTOM" && customStart && customEnd) {
+    return { start: new Date(customStart), end: new Date(customEnd) };
+  }
+
   const end = new Date();
   const start = new Date();
 
@@ -78,6 +83,7 @@ function getDateRangeForTimeRange(range: TimeRange): { start: Date; end: Date } 
       start.setFullYear(start.getFullYear() - 1);
       break;
     case "ALL":
+    case "CUSTOM":
       start.setFullYear(start.getFullYear() - 10);
       break;
   }
@@ -98,6 +104,8 @@ export function AccountsPage({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>("3M");
   const [overviewTimeRange, setOverviewTimeRange] = useState<TimeRange>("6M");
+  const [customDateStart, setCustomDateStart] = useState<string>("");
+  const [customDateEnd, setCustomDateEnd] = useState<string>("");
   const [netWorthHistory, setNetWorthHistory] = useState<NetWorthPoint[]>([]);
   const [netWorthLoading, setNetWorthLoading] = useState(false);
 
@@ -133,12 +141,12 @@ export function AccountsPage({
   }, [initData]);
 
   // Fetch net worth history (combined assets and liabilities over time)
-  const fetchNetWorthHistory = useCallback(async (range: TimeRange) => {
+  const fetchNetWorthHistory = useCallback(async (range: TimeRange, custStart?: string, custEnd?: string) => {
     if (!initData || assets.length === 0) return;
 
     try {
       setNetWorthLoading(true);
-      const { start, end } = getDateRangeForTimeRange(range);
+      const { start, end } = getDateRangeForTimeRange(range, custStart, custEnd);
       const endStr = end.toISOString().split("T")[0];
       const startStr = start.toISOString().split("T")[0];
 
@@ -210,9 +218,13 @@ export function AccountsPage({
   // Fetch net worth history when overview time range changes
   useEffect(() => {
     if (!selectedAccount && !loading) {
-      fetchNetWorthHistory(overviewTimeRange);
+      if (overviewTimeRange === "CUSTOM" && customDateStart && customDateEnd) {
+        fetchNetWorthHistory(overviewTimeRange, customDateStart, customDateEnd);
+      } else if (overviewTimeRange !== "CUSTOM") {
+        fetchNetWorthHistory(overviewTimeRange);
+      }
     }
-  }, [selectedAccount, loading, overviewTimeRange, fetchNetWorthHistory]);
+  }, [selectedAccount, loading, overviewTimeRange, customDateStart, customDateEnd, fetchNetWorthHistory]);
 
   // Calculate stats for the period
   const periodStats = useMemo(() => {
@@ -290,22 +302,6 @@ export function AccountsPage({
               {loading ? "—" : `-${formatCurrency(totalLiabilities, mainCurrency)}`}
             </p>
           </div>
-          {netWorthStats && (
-            <div className="ml-auto flex items-center gap-1">
-              {netWorthStats.change >= 0 ? (
-                <TrendingUp size={14} style={{ color: "#86efac" }} />
-              ) : (
-                <TrendingDown size={14} style={{ color: "#fca5a5" }} />
-              )}
-              <span
-                className="text-sm font-medium tabular-nums"
-                style={{ color: netWorthStats.change >= 0 ? "#86efac" : "#fca5a5" }}
-              >
-                {netWorthStats.change >= 0 ? "+" : ""}
-                {netWorthStats.changePercent.toFixed(1)}%
-              </span>
-            </div>
-          )}
         </div>
       </div>
 
@@ -433,30 +429,12 @@ export function AccountsPage({
           <>
             {/* Net Worth Evolution Chart */}
             <section className="fade-in" style={{ marginTop: 24 }}>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-title" style={{ color: "var(--tg-theme-text-color)" }}>
-                  Evolución patrimonial
-                </h2>
-                {netWorthStats && (
-                  <div
-                    className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium"
-                    style={{
-                      backgroundColor:
-                        netWorthStats.change >= 0 ? "rgba(5, 150, 105, 0.1)" : "rgba(220, 38, 38, 0.1)",
-                      color: netWorthStats.change >= 0 ? "#059669" : "#dc2626",
-                    }}
-                  >
-                    {netWorthStats.change >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                    <span>
-                      {netWorthStats.change >= 0 ? "+" : ""}
-                      {netWorthStats.changePercent.toFixed(1)}%
-                    </span>
-                  </div>
-                )}
-              </div>
+              <h2 className="text-title mb-3" style={{ color: "var(--tg-theme-text-color)" }}>
+                Evolución patrimonial
+              </h2>
 
               {/* Time range selector for overview */}
-              <div className="time-range-selector" style={{ marginTop: 0, marginBottom: 12 }}>
+              <div className="time-range-selector" style={{ marginTop: 0, marginBottom: 8 }}>
                 {TIME_RANGE_OPTIONS.map((option) => (
                   <button
                     key={option.value}
@@ -467,6 +445,75 @@ export function AccountsPage({
                   </button>
                 ))}
               </div>
+
+              {/* Custom date range picker */}
+              {overviewTimeRange === "CUSTOM" && (
+                <div className="flex gap-2 items-center mb-3">
+                  <input
+                    type="date"
+                    value={customDateStart}
+                    onChange={(e) => setCustomDateStart(e.target.value)}
+                    className="flex-1 p-2 rounded-lg text-sm"
+                    style={{
+                      backgroundColor: "var(--tg-theme-secondary-bg-color)",
+                      color: "var(--tg-theme-text-color)",
+                      border: "none",
+                    }}
+                  />
+                  <span style={{ color: "var(--tg-theme-hint-color)" }}>→</span>
+                  <input
+                    type="date"
+                    value={customDateEnd}
+                    onChange={(e) => setCustomDateEnd(e.target.value)}
+                    className="flex-1 p-2 rounded-lg text-sm"
+                    style={{
+                      backgroundColor: "var(--tg-theme-secondary-bg-color)",
+                      color: "var(--tg-theme-text-color)",
+                      border: "none",
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* KPIs below time range selector */}
+              {netWorthStats && !netWorthLoading && (
+                <div
+                  className="flex gap-4 mb-4 p-3 rounded-xl"
+                  style={{ backgroundColor: "var(--tg-theme-secondary-bg-color)" }}
+                >
+                  <div className="flex-1">
+                    <p className="text-xs mb-1" style={{ color: "var(--tg-theme-hint-color)" }}>
+                      Cambio absoluto
+                    </p>
+                    <p
+                      className="font-semibold tabular-nums"
+                      style={{ color: netWorthStats.change >= 0 ? "#059669" : "#dc2626" }}
+                    >
+                      {netWorthStats.change >= 0 ? "+" : ""}
+                      {formatCurrency(netWorthStats.change, mainCurrency)}
+                    </p>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs mb-1" style={{ color: "var(--tg-theme-hint-color)" }}>
+                      Cambio porcentual
+                    </p>
+                    <div className="flex items-center gap-1">
+                      {netWorthStats.change >= 0 ? (
+                        <TrendingUp size={14} style={{ color: "#059669" }} />
+                      ) : (
+                        <TrendingDown size={14} style={{ color: "#dc2626" }} />
+                      )}
+                      <span
+                        className="font-semibold tabular-nums"
+                        style={{ color: netWorthStats.change >= 0 ? "#059669" : "#dc2626" }}
+                      >
+                        {netWorthStats.change >= 0 ? "+" : ""}
+                        {netWorthStats.changePercent.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div style={{ height: 200 }}>
                 {netWorthLoading || loading ? (
