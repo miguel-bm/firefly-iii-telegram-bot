@@ -1,9 +1,11 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { Bot } from "grammy";
+import { stream } from "@grammyjs/stream";
+import { autoRetry } from "@grammyjs/auto-retry";
 import type { Env } from "./types.js";
 import { ChatAgentDO } from "./agent.js";
-import { processMessage, getMessages, type AgentProxy } from "./bot.js";
+import { processMessage, getMessages, type AgentProxy, type StreamContext } from "./bot.js";
 import { handleScheduled } from "./cron.js";
 import { importBankStatement, formatImportResult } from "./import/importer.js";
 import { FireflyClient } from "./tools/firefly.js";
@@ -533,6 +535,30 @@ async function callAgent(
     return response.json();
 }
 
+async function callAgentStream(
+    env: Env,
+    chatId: number,
+    message: string,
+    userName?: string,
+): Promise<ReadableStream> {
+    const agentId = env.CHAT_AGENT.idFromName(String(chatId));
+    const stub = env.CHAT_AGENT.get(agentId);
+
+    const response = await stub.fetch(
+        new Request("http://agent/runAgentTurnStream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message, userName }),
+        })
+    );
+
+    if (!response.ok || !response.body) {
+        throw new Error(`Agent stream failed: ${response.status}`);
+    }
+
+    return response.body;
+}
+
 // Telegram webhook
 app.post("/telegram/webhook", async (c) => {
     const env = c.env;
@@ -561,8 +587,10 @@ app.post("/telegram/webhook", async (c) => {
     }
 
     // Create bot instance and initialize (required for serverless)
-    const bot = new Bot(env.TELEGRAM_BOT_TOKEN);
+    const bot = new Bot<StreamContext>(env.TELEGRAM_BOT_TOKEN);
     await bot.init();
+    bot.api.config.use(autoRetry());
+    bot.use(stream());
 
     // Register command handlers
     bot.command("start", async (ctx) => {
@@ -669,6 +697,9 @@ app.post("/telegram/webhook", async (c) => {
                         text: agentResponse?.text ?? "",
                         chartUrl: agentResponse?.chartUrl,
                     };
+                },
+                runAgentTurnStream: async (message: string, userName?: string) => {
+                    return callAgentStream(env, id, message, userName);
                 },
             };
         };
