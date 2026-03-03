@@ -162,3 +162,10 @@ export interface TransactionDetail {
     notes: string | null;
 }
 
+// NDJSON streaming protocol between DO and webhook handler
+export type StreamEvent =
+    | { type: "tool"; name: string }
+    | { type: "text"; content: string }
+    | { type: "done"; chartUrl?: string }
+    | { type: "error"; message: string };
+
