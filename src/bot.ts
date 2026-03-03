@@ -217,17 +217,29 @@ export async function processMessage(
             return;
         }
 
-        const stream = await agent.runAgentTurnStream(text, userName);
+        // sendMessageDraft only works in private chats, not groups
+        const isPrivateChat = ctx.chat?.type === "private";
 
-        // Use the same draft_id formula as @grammyjs/stream plugin (256 * update_id)
-        // so our tool status drafts get replaced when real text starts streaming
-        const draftId = 256 * (ctx.update.update_id ?? 0);
+        if (isPrivateChat) {
+            const stream = await agent.runAgentTurnStream(text, userName);
 
-        await ctx.replyWithStream(
-            ndjsonToText(stream, lang, ctx.api, chatId, draftId),
-            {},
-            { parse_mode: "Markdown" },
-        );
+            // Use the same draft_id formula as @grammyjs/stream plugin (256 * update_id)
+            // so our tool status drafts get replaced when real text starts streaming
+            const draftId = 256 * (ctx.update.update_id ?? 0);
+
+            await ctx.replyWithStream(
+                ndjsonToText(stream, lang, ctx.api, chatId, draftId),
+                {},
+                { parse_mode: "Markdown" },
+            );
+        } else {
+            // Group chats: fall back to non-streaming response
+            await ctx.replyWithChatAction("typing");
+            const response = await agent.runAgentTurn(text, userName);
+            if (response.text) {
+                await ctx.reply(response.text, { parse_mode: "Markdown" });
+            }
+        }
     } catch (error) {
         console.error("Agent error:", error);
         await ctx.reply(msgs.processingError);

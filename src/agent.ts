@@ -775,6 +775,7 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
         this.setState({
             ...this.state,
             messageHistory: [],
+            isProcessing: false,
         });
         const lang = this.env.BOT_LANGUAGE ?? "es";
         return RESET_MESSAGES[lang];
