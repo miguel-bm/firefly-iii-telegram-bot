@@ -8,12 +8,18 @@ importers:
 
   .:
     dependencies:
+      '@grammyjs/auto-retry':
+        specifier: ^2.0.2
+        version: 2.0.2(grammy@1.41.1)
+      '@grammyjs/stream':
+        specifier: ^1.0.0
+        version: 1.0.0(grammy@1.41.1)
       agents:
         specifier: ^0.0.92
         version: 0.0.92(@cloudflare/workers-types@4.20251230.0)(hono@4.11.3)(react@19.2.3)
       grammy:
-        specifier: ^1.38.4
-        version: 1.38.4
+        specifier: ^1.41.1
+        version: 1.41.1
       hono:
         specifier: ^4.11.3
         version: 4.11.3
@@ -271,8 +277,20 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@grammyjs/types@3.22.2':
-    resolution: {integrity: sha512-uu7DX2ezhnBPozL3bXHmwhLvaFsh59E4QyviNH4Cij7EdVekYrs6mCzeXsa2pDk30l3uXo7DBahlZLzTPtpYZg==}
+  '@grammyjs/auto-retry@2.0.2':
+    resolution: {integrity: sha512-b4A4p5jlYDiQtW0c0FXYe11WMkYoiW+5rvOaDMCOk1h7Pu2SDl7B7gmFF8cthWCx2+M2nWLOsBxAgbBG4kKWYg==}
+    engines: {node: '>=12.20.0 || >=14.13.1'}
+    peerDependencies:
+      grammy: ^1.10.0
+
+  '@grammyjs/stream@1.0.0':
+    resolution: {integrity: sha512-2VClaPdVhrl65vluYwhaKZitUac6Avfp6FUoFmaJVxxgTo8yDSYXncbbdISS9SRA3/edn2iI3Od+c/4gctQBRQ==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      grammy: ^1.39.0
+
+  '@grammyjs/types@3.25.0':
+    resolution: {integrity: sha512-iN9i5p+8ZOu9OMxWNcguojQfz4K/PDyMPOnL7PPCON+SoA/F8OKMH3uR7CVUkYfdNe0GCz8QOzAWrnqusQYFOg==}
 
   '@hono/node-server@1.19.7':
     resolution: {integrity: sha512-vUcD0uauS7EU2caukW8z5lJKtoGMokxNbJtBiwHgpqxEXokaHCBkQUmCHhjFB1VUTWdqj25QoMkMKzgjq+uhrw==}
@@ -696,8 +714,8 @@ packages:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
 
-  grammy@1.38.4:
-    resolution: {integrity: sha512-z07Kin3HgRwMdy40KUs+c9fmNBvGlSxGwcqY8NAH0a8KULGFYEMQaFAo3ge0V5tvmgr02Jgubkf54KjHLAMCbw==}
+  grammy@1.41.1:
+    resolution: {integrity: sha512-wcHAQ1e7svL3fJMpDchcQVcWUmywhuepOOjHUHmMmWAwUJEIyK5ea5sbSjZd+Gy1aMpZeP8VYJa+4tP+j1YptQ==}
     engines: {node: ^12.20.0 || >=14.13.1}
 
   has-symbols@1.1.0:
@@ -1232,7 +1250,19 @@ snapshots:
   '@esbuild/win32-x64@0.27.0':
     optional: true
 
-  '@grammyjs/types@3.22.2': {}
+  '@grammyjs/auto-retry@2.0.2(grammy@1.41.1)':
+    dependencies:
+      debug: 4.4.3
+      grammy: 1.41.1
+    transitivePeerDependencies:
+      - supports-color
+
+  '@grammyjs/stream@1.0.0(grammy@1.41.1)':
+    dependencies:
+      abort-controller: 3.0.0
+      grammy: 1.41.1
+
+  '@grammyjs/types@3.25.0': {}
 
   '@hono/node-server@1.19.7(hono@4.11.3)':
     dependencies:
@@ -1662,9 +1692,9 @@ snapshots:
 
   gopd@1.2.0: {}
 
-  grammy@1.38.4:
+  grammy@1.41.1:
     dependencies:
-      '@grammyjs/types': 3.22.2
+      '@grammyjs/types': 3.25.0
       abort-controller: 3.0.0
       debug: 4.4.3
       node-fetch: 2.7.0
