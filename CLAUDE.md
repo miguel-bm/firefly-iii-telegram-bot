@@ -9,9 +9,9 @@ Telegram bot for [Firefly III](https://www.firefly-iii.org/) personal finance tr
 ## Tech Stack
 
 - **Runtime**: Cloudflare Workers
-- **Bot**: grammY (Telegram) + Hono (HTTP)
+- **Bot**: grammY (Telegram) + Hono (HTTP) + @grammyjs/stream (response streaming)
 - **State**: Cloudflare Durable Objects (Agents SDK)
-- **LLM**: OpenAI GPT-4.1-mini (function calling)
+- **LLM**: OpenAI GPT-5-mini (function calling, streaming)
 - **Package Manager**: pnpm
 
 ## Key Commands
@@ -26,9 +26,13 @@ npx tsc --noEmit  # Type check
 
 ```
 Telegram → Hono webhook → grammY bot → Durable Object Agent → Firefly III API
-                              ↓
-                    Document uploads → Import module (no LLM)
+                              ↓              ↓ (NDJSON stream)
+                    Document uploads    ctx.replyWithStream() → sendMessageDraft
 ```
+
+### Response Streaming
+
+LLM responses are streamed to users in real-time using Telegram's `sendMessageDraft` (Bot API 9.5) via `@grammyjs/stream`. The DO streams NDJSON events (`tool`, `text`, `done`, `error`) over HTTP. During tool execution, ephemeral status messages (e.g., "Consultando transacciones...") appear as drafts and get replaced when the actual text response starts streaming. The non-streaming `runAgentTurn()` path is preserved for cron jobs.
 
 ## File Structure
 
