@@ -1,11 +1,16 @@
-import { Context } from "grammy";
-import type { Env, AgentResponse } from "./types.js";
+import { type Context, type Api } from "grammy";
+import { type StreamFlavor } from "@grammyjs/stream";
+import type { Env, AgentResponse, StreamEvent } from "./types.js";
 import { transcribeVoice } from "./tools/stt.js";
+
+// Context type with stream support
+export type StreamContext = StreamFlavor<Context>;
 
 // Interface for agent proxy (used via HTTP calls)
 export interface AgentProxy {
     checkBusy(): Promise<string | null>;
     runAgentTurn(message: string, userName?: string): Promise<AgentResponse>;
+    runAgentTurnStream(message: string, userName?: string): Promise<ReadableStream>;
 }
 
 // Get user display name from Telegram context
@@ -83,9 +88,80 @@ export function getMessages(lang: "es" | "en") {
     return MESSAGES[lang] ?? MESSAGES.es;
 }
 
+const TOOL_STATUS_LABELS: Record<string, Record<string, string>> = {
+    es: {
+        firefly_create_transaction: "Registrando transacción...",
+        firefly_delete_transaction: "Eliminando transacción...",
+        firefly_update_transaction: "Actualizando transacción...",
+        firefly_query_transactions: "Consultando transacciones...",
+        generate_chart: "Generando gráfico...",
+        firefly_report_link: "Obteniendo enlace...",
+        firefly_get_accounts: "Consultando cuentas...",
+        firefly_get_account_history: "Consultando historial...",
+        firefly_get_transaction: "Obteniendo transacción...",
+        firefly_review_uncategorized: "Revisando sin categoría...",
+        firefly_convert_to_transfer: "Convirtiendo a transferencia...",
+        firefly_bulk_categorize: "Categorizando transacciones...",
+    },
+    en: {
+        firefly_create_transaction: "Creating transaction...",
+        firefly_delete_transaction: "Deleting transaction...",
+        firefly_update_transaction: "Updating transaction...",
+        firefly_query_transactions: "Querying transactions...",
+        generate_chart: "Generating chart...",
+        firefly_report_link: "Getting report link...",
+        firefly_get_accounts: "Fetching accounts...",
+        firefly_get_account_history: "Fetching history...",
+        firefly_get_transaction: "Fetching transaction...",
+        firefly_review_uncategorized: "Reviewing uncategorized...",
+        firefly_convert_to_transfer: "Converting to transfer...",
+        firefly_bulk_categorize: "Categorizing transactions...",
+    },
+};
+
+async function* ndjsonToText(
+    body: ReadableStream,
+    lang: string,
+    api: Api,
+    chatId: number,
+): AsyncGenerator<string> {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                const event: StreamEvent = JSON.parse(line);
+
+                if (event.type === "tool") {
+                    const labels = TOOL_STATUS_LABELS[lang] ?? TOOL_STATUS_LABELS.es;
+                    const label = labels[event.name] ?? event.name;
+                    await api.sendMessageDraft(chatId, 1, `⏳ ${label}`);
+                } else if (event.type === "text") {
+                    yield event.content;
+                } else if (event.type === "error") {
+                    yield event.message;
+                }
+                // "done" events: generator completes naturally, plugin finalizes
+            }
+        }
+    } finally {
+        reader.releaseLock();
+    }
+}
+
 // Process a message through the agent
 export async function processMessage(
-    ctx: Context,
+    ctx: StreamContext,
     env: Env,
     getAgent: (chatId: number) => Promise<AgentProxy>
 ): Promise<void> {
@@ -134,14 +210,13 @@ export async function processMessage(
             return;
         }
 
-        await ctx.replyWithChatAction("typing");
+        const stream = await agent.runAgentTurnStream(text, userName);
 
-        const response = await agent.runAgentTurn(text, userName);
-
-        // Send text response (chart URLs will be previewed by Telegram automatically)
-        if (response.text) {
-            await ctx.reply(response.text, { parse_mode: "Markdown" });
-        }
+        await ctx.replyWithStream(
+            ndjsonToText(stream, lang, ctx.api, chatId),
+            {},
+            { parse_mode: "Markdown" },
+        );
     } catch (error) {
         console.error("Agent error:", error);
         await ctx.reply(msgs.processingError);
