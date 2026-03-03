@@ -687,37 +687,6 @@ const RESET_MESSAGES = {
     en: "🔄 Conversation history cleared.",
 };
 
-const TOOL_STATUS_LABELS: Record<string, Record<string, string>> = {
-    es: {
-        firefly_create_transaction: "Registrando transacción...",
-        firefly_delete_transaction: "Eliminando transacción...",
-        firefly_update_transaction: "Actualizando transacción...",
-        firefly_query_transactions: "Consultando transacciones...",
-        generate_chart: "Generando gráfico...",
-        firefly_report_link: "Obteniendo enlace...",
-        firefly_get_accounts: "Consultando cuentas...",
-        firefly_get_account_history: "Consultando historial...",
-        firefly_get_transaction: "Obteniendo transacción...",
-        firefly_review_uncategorized: "Revisando sin categoría...",
-        firefly_convert_to_transfer: "Convirtiendo a transferencia...",
-        firefly_bulk_categorize: "Categorizando transacciones...",
-    },
-    en: {
-        firefly_create_transaction: "Creating transaction...",
-        firefly_delete_transaction: "Deleting transaction...",
-        firefly_update_transaction: "Updating transaction...",
-        firefly_query_transactions: "Querying transactions...",
-        generate_chart: "Generating chart...",
-        firefly_report_link: "Getting report link...",
-        firefly_get_accounts: "Fetching accounts...",
-        firefly_get_account_history: "Fetching history...",
-        firefly_get_transaction: "Fetching transaction...",
-        firefly_review_uncategorized: "Reviewing uncategorized...",
-        firefly_convert_to_transfer: "Converting to transfer...",
-        firefly_bulk_categorize: "Categorizing transactions...",
-    },
-};
-
 export class ChatAgentDO extends Agent<Env, ChatAgentState> {
     initialState: ChatAgentState = {
         chatId: 0,

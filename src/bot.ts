@@ -124,6 +124,7 @@ async function* ndjsonToText(
     lang: string,
     api: Api,
     chatId: number,
+    draftId: number,
 ): AsyncGenerator<string> {
     const reader = body.getReader();
     const decoder = new TextDecoder();
@@ -140,12 +141,18 @@ async function* ndjsonToText(
 
             for (const line of lines) {
                 if (!line.trim()) continue;
-                const event: StreamEvent = JSON.parse(line);
+                let event: StreamEvent;
+                try {
+                    event = JSON.parse(line);
+                } catch {
+                    console.error("Failed to parse NDJSON line:", line);
+                    continue;
+                }
 
                 if (event.type === "tool") {
                     const labels = TOOL_STATUS_LABELS[lang] ?? TOOL_STATUS_LABELS.es;
                     const label = labels[event.name] ?? event.name;
-                    await api.sendMessageDraft(chatId, 1, `⏳ ${label}`);
+                    await api.sendMessageDraft(chatId, draftId, `⏳ ${label}`);
                 } else if (event.type === "text") {
                     yield event.content;
                 } else if (event.type === "error") {
@@ -212,8 +219,12 @@ export async function processMessage(
 
         const stream = await agent.runAgentTurnStream(text, userName);
 
+        // Use the same draft_id formula as @grammyjs/stream plugin (256 * update_id)
+        // so our tool status drafts get replaced when real text starts streaming
+        const draftId = 256 * (ctx.update.update_id ?? 0);
+
         await ctx.replyWithStream(
-            ndjsonToText(stream, lang, ctx.api, chatId),
+            ndjsonToText(stream, lang, ctx.api, chatId, draftId),
             {},
             { parse_mode: "Markdown" },
         );
