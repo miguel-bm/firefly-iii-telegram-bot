@@ -6,6 +6,7 @@ import type {
     ChatMessage,
     CreateTransactionInput,
     AgentResponse,
+    StreamEvent,
 } from "./types.js";
 import { FireflyClient, getCachedCategories, getCachedAssetAccountIds, getCachedTags, getCachedAssetAccounts } from "./tools/firefly.js";
 import { aggregateTransactions, formatAggregateResult, type GroupByOption } from "./query/aggregate.js";
@@ -686,6 +687,37 @@ const RESET_MESSAGES = {
     en: "🔄 Conversation history cleared.",
 };
 
+const TOOL_STATUS_LABELS: Record<string, Record<string, string>> = {
+    es: {
+        firefly_create_transaction: "Registrando transacción...",
+        firefly_delete_transaction: "Eliminando transacción...",
+        firefly_update_transaction: "Actualizando transacción...",
+        firefly_query_transactions: "Consultando transacciones...",
+        generate_chart: "Generando gráfico...",
+        firefly_report_link: "Obteniendo enlace...",
+        firefly_get_accounts: "Consultando cuentas...",
+        firefly_get_account_history: "Consultando historial...",
+        firefly_get_transaction: "Obteniendo transacción...",
+        firefly_review_uncategorized: "Revisando sin categoría...",
+        firefly_convert_to_transfer: "Convirtiendo a transferencia...",
+        firefly_bulk_categorize: "Categorizando transacciones...",
+    },
+    en: {
+        firefly_create_transaction: "Creating transaction...",
+        firefly_delete_transaction: "Deleting transaction...",
+        firefly_update_transaction: "Updating transaction...",
+        firefly_query_transactions: "Querying transactions...",
+        generate_chart: "Generating chart...",
+        firefly_report_link: "Getting report link...",
+        firefly_get_accounts: "Fetching accounts...",
+        firefly_get_account_history: "Fetching history...",
+        firefly_get_transaction: "Fetching transaction...",
+        firefly_review_uncategorized: "Reviewing uncategorized...",
+        firefly_convert_to_transfer: "Converting to transfer...",
+        firefly_bulk_categorize: "Categorizing transactions...",
+    },
+};
+
 export class ChatAgentDO extends Agent<Env, ChatAgentState> {
     initialState: ChatAgentState = {
         chatId: 0,
@@ -715,6 +747,34 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
             if (action === "resetHistory") {
                 const result = this.resetHistory();
                 return Response.json({ result });
+            }
+
+            if (action === "runAgentTurnStream") {
+                const { readable, writable } = new TransformStream();
+                const writer = writable.getWriter();
+                const encoder = new TextEncoder();
+
+                const generator = this.runAgentTurnStream(body.message ?? "", body.userName);
+
+                (async () => {
+                    try {
+                        for await (const event of generator) {
+                            await writer.write(encoder.encode(JSON.stringify(event) + "\n"));
+                        }
+                    } catch (error) {
+                        const errorEvent: StreamEvent = {
+                            type: "error",
+                            message: error instanceof Error ? error.message : "Unknown error",
+                        };
+                        await writer.write(encoder.encode(JSON.stringify(errorEvent) + "\n"));
+                    } finally {
+                        await writer.close();
+                    }
+                })();
+
+                return new Response(readable, {
+                    headers: { "Content-Type": "application/x-ndjson" },
+                });
             }
 
             if (action === "runAgentTurn") {
@@ -1264,6 +1324,154 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
             // Clear processing flag on error
             this.setState({ ...this.state, isProcessing: false });
             throw error;
+        }
+    }
+
+    async *runAgentTurnStream(message: string, userName?: string): AsyncGenerator<StreamEvent> {
+        const env = this.env;
+        const lang = env.BOT_LANGUAGE ?? "es";
+        const timezone = env.BOT_TIMEZONE ?? "Europe/Madrid";
+        const maxHistory = parseInt(env.MAX_HISTORY_MESSAGES ?? "20", 10);
+
+        this.setState({ ...this.state, isProcessing: true });
+
+        let chartUrl: string | undefined;
+        let finalResponse = "";
+
+        try {
+            const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+            const firefly = new FireflyClient(env);
+
+            const [categories, tags, accounts] = await Promise.all([
+                getCachedCategories(env),
+                getCachedTags(env),
+                getCachedAssetAccounts(env),
+            ]);
+            const categoryNames = categories.map((c) => c.name);
+            const currency = this.state.defaultCurrency ?? env.DEFAULT_CURRENCY;
+            const systemPrompt = SYSTEM_PROMPTS[lang](categoryNames, tags, accounts, currency, timezone);
+
+            const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+                { role: "system", content: systemPrompt },
+            ];
+
+            for (const historyMsg of this.state.messageHistory) {
+                if (historyMsg.role === "user") {
+                    const prefix = historyMsg.userName ? `[${historyMsg.userName}]: ` : "";
+                    messages.push({ role: "user", content: prefix + historyMsg.content });
+                } else {
+                    messages.push({ role: "assistant", content: historyMsg.content });
+                }
+            }
+
+            const userPrefix = userName ? `[${userName}]: ` : "";
+            messages.push({ role: "user", content: userPrefix + message });
+
+            let iterations = 0;
+            const maxIterations = 10;
+
+            while (iterations < maxIterations) {
+                iterations++;
+
+                const stream = await openai.chat.completions.create({
+                    model: "gpt-5-mini",
+                    messages,
+                    tools: TOOLS,
+                    tool_choice: "auto",
+                    stream: true,
+                });
+
+                let fullContent = "";
+                const toolCallAccumulator = new Map<number, { id: string; name: string; arguments: string }>();
+
+                for await (const chunk of stream) {
+                    const choice = chunk.choices[0];
+                    if (!choice) continue;
+
+                    const delta = choice.delta;
+
+                    if (delta?.content) {
+                        fullContent += delta.content;
+                        yield { type: "text", content: delta.content };
+                    }
+
+                    if (delta?.tool_calls) {
+                        for (const tc of delta.tool_calls) {
+                            const existing = toolCallAccumulator.get(tc.index);
+                            if (!existing) {
+                                toolCallAccumulator.set(tc.index, {
+                                    id: tc.id ?? "",
+                                    name: tc.function?.name ?? "",
+                                    arguments: tc.function?.arguments ?? "",
+                                });
+                            } else {
+                                if (tc.id) existing.id = tc.id;
+                                if (tc.function?.name) existing.name += tc.function.name;
+                                if (tc.function?.arguments) existing.arguments += tc.function.arguments;
+                            }
+                        }
+                    }
+                }
+
+                // If we got tool calls, execute them and loop
+                if (toolCallAccumulator.size > 0) {
+                    const toolCalls = [...toolCallAccumulator.values()].map((tc) => ({
+                        id: tc.id,
+                        type: "function" as const,
+                        function: { name: tc.name, arguments: tc.arguments },
+                    }));
+
+                    messages.push({
+                        role: "assistant",
+                        content: fullContent || null,
+                        tool_calls: toolCalls,
+                    });
+
+                    for (const toolCall of toolCalls) {
+                        yield { type: "tool", name: toolCall.function.name };
+                        const { result, chartUrl: newChartUrl } = await this.executeTool(
+                            toolCall as OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall,
+                            firefly, env, lang, currency
+                        );
+                        if (newChartUrl) chartUrl = newChartUrl;
+                        messages.push({ role: "tool", tool_call_id: toolCall.id, content: result });
+                    }
+
+                    continue;
+                }
+
+                // No tool calls — this is the final response
+                finalResponse = fullContent || (lang === "es" ? "Hecho." : "Done.");
+                break;
+            }
+
+            if (!finalResponse) {
+                const msg = lang === "es"
+                    ? "Alcancé el número máximo de pasos. Por favor, intenta una solicitud más simple."
+                    : "I reached the maximum number of steps. Please try a simpler request.";
+                yield { type: "text", content: msg };
+                finalResponse = msg;
+            }
+
+            yield { type: "done", chartUrl };
+
+            // Update message history
+            const userMsg: ChatMessage = { role: "user", content: message, userName, timestamp: Date.now() };
+            const assistantMsg: ChatMessage = { role: "assistant", content: finalResponse, timestamp: Date.now() };
+            const newHistory: ChatMessage[] = [
+                ...this.state.messageHistory,
+                userMsg,
+                assistantMsg,
+            ].slice(-maxHistory);
+
+            this.setState({
+                ...this.state,
+                messageHistory: newHistory,
+                isProcessing: false,
+            });
+        } catch (error) {
+            this.setState({ ...this.state, isProcessing: false });
+            yield { type: "error", message: error instanceof Error ? error.message : "Unknown error" };
         }
     }
 }
