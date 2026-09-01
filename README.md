@@ -144,6 +144,11 @@ wrangler secret put TELEGRAM_ALLOWED_USER_IDS # Optional Mini App user IDs; defa
 wrangler secret put FIREFLY_API_URL           # e.g., https://firefly.yourdomain.com
 wrangler secret put FIREFLY_API_TOKEN         # Personal Access Token from Firefly III
 wrangler secret put OPENAI_API_KEY            # OpenAI API key
+wrangler secret put BANK_ACCOUNT_SUFFIX_CAIXABANK
+wrangler secret put BANK_ACCOUNT_SUFFIX_IMAGINBANK
+wrangler secret put BANK_ACCOUNT_NAME_BBVA
+wrangler secret put BANK_ACCOUNT_NAME_CAIXABANK
+wrangler secret put BANK_ACCOUNT_NAME_IMAGINBANK
 ```
 
 ### 8. Deploy
@@ -241,10 +246,16 @@ Change the category of my last expense to Entertainment
 ### Bank Imports
 
 Simply upload an Excel (.xlsx, .xls) or CSV file from a supported bank. The bot will:
-1. Auto-detect the bank from file content
-2. Parse all transactions
-3. Skip duplicates (already imported)
-4. Create new transactions in Firefly III
+1. Detect the statement format from its content
+2. Resolve the destination asset account
+3. Parse all transactions
+4. Skip account-specific duplicates
+5. Create new transactions in Firefly III
+
+CaixaBank can export both the shared account and an Imagin account with the same file format.
+Keep the original `Movimientos_cuenta_<account>` filename: the configured suffix selects the
+correct Firefly account. Unknown suffixes are rejected before any transaction is created, and
+the bot includes the selected account name in every import result.
 
 ## Commands
 
@@ -286,6 +297,11 @@ Simply upload an Excel (.xlsx, .xls) or CSV file from a supported bank. The bot 
 | `FIREFLY_API_TOKEN` | Firefly III Personal Access Token |
 | `OPENAI_API_KEY` | OpenAI API key |
 | `DASHBOARD_WEBAPP_URL` | (Optional) Mini App URL for /dashboard |
+| `BANK_ACCOUNT_SUFFIX_CAIXABANK` | Shared account suffix in CaixaBank export filenames |
+| `BANK_ACCOUNT_SUFFIX_IMAGINBANK` | Imagin account suffix in CaixaBank export filenames |
+| `BANK_ACCOUNT_NAME_BBVA` | Friendly BBVA account name shown in import results |
+| `BANK_ACCOUNT_NAME_CAIXABANK` | Friendly shared-account name shown in import results |
+| `BANK_ACCOUNT_NAME_IMAGINBANK` | Friendly Imagin account name shown in import results |
 
 ## Extending the Bot
 

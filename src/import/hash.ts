@@ -9,6 +9,7 @@
 export interface ImportHashData {
   chatId: string;
   bankId: string;
+  accountId: string;
   date: string;
   amount: number;
   description: string;
@@ -38,17 +39,16 @@ function normalizeAmount(amount: number): string {
 
 // Create a unique signature string for hashing
 function createSignature(
-  chatId: string,
-  bankId: string,
+  accountId: string,
   date: string,
   amount: number,
   description: string
 ): string {
   const normalizedDesc = normalizeDescription(description);
-  const normalizedAmount = normalizeAmount(amount);
+  const normalizedAmount = amount.toFixed(2);
 
-  // Format: chatId|bankId|date|amount|description
-  return `${chatId}|${bankId}|${date}|${normalizedAmount}|${normalizedDesc}`;
+  // Account identity prevents identical movements in different accounts colliding.
+  return `${accountId}|${date}|${normalizedAmount}|${normalizedDesc}`;
 }
 
 // Generate SHA-256 hash of the signature
@@ -61,14 +61,26 @@ async function sha256(message: string): Promise<string> {
 
 // Generate import hash for a transaction
 export async function generateImportHash(
-  chatId: string,
-  bankId: string,
+  accountId: string,
   date: string,
   amount: number,
   description: string
 ): Promise<string> {
-  const signature = createSignature(chatId, bankId, date, amount, description);
+  const signature = createSignature(accountId, date, amount, description);
   return sha256(signature);
+}
+
+// Hash format used before account-aware imports. Kept only for safe migration.
+export async function generateLegacyImportHash(
+  chatId: string,
+  bankId: string,
+  date: string,
+  amount: number,
+  description: string,
+): Promise<string> {
+  return sha256(
+    `${chatId}|${bankId}|${date}|${normalizeAmount(amount)}|${normalizeDescription(description)}`,
+  );
 }
 
 // KV key format
@@ -141,6 +153,7 @@ export async function batchCheckHashes(
 export function createHashData(
   chatId: string,
   bankId: string,
+  accountId: string,
   date: string,
   amount: number,
   description: string
@@ -148,6 +161,7 @@ export function createHashData(
   return {
     chatId,
     bankId,
+    accountId,
     date,
     amount,
     description,

@@ -10,6 +10,13 @@ FIREFLY_API_TOKEN=your_firefly_api_token_here
 # OpenAI
 OPENAI_API_KEY=sk-your_openai_api_key_here
 
+# Private account routing
+BANK_ACCOUNT_SUFFIX_CAIXABANK=shared_account_suffix
+BANK_ACCOUNT_SUFFIX_IMAGINBANK=imagin_account_suffix
+BANK_ACCOUNT_NAME_BBVA=BBVA
+BANK_ACCOUNT_NAME_CAIXABANK=Shared account
+BANK_ACCOUNT_NAME_IMAGINBANK=ImaginBank
+
 # Optional: Default cash account ID (get from Firefly III)
 DEFAULT_ACCOUNT_ID=1
-
+DASHBOARD_WEBAPP_URL=https://t.me/your_bot/your_app

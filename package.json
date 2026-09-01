@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "wrangler types --env-file .dev.vars.example >/dev/null && tsc --noEmit",
     "test": "vitest run",
     "check": "pnpm typecheck && pnpm test && pnpm build:webapp",
     "audit:ci": "pnpm audit --prod --audit-level critical",

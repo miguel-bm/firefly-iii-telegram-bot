@@ -10,27 +10,13 @@ import { detectBank, getBankName } from "./detector.js";
 import { parseStatementFile } from "./parsers.js";
 import {
   generateImportHash,
+  generateLegacyImportHash,
   storeHash,
   createHashData,
   getHashTTLSeconds,
   batchCheckHashes,
 } from "./hash.js";
-
-export function getBankAccountId(bank: BankId, env: Env): string {
-  const accountIds: Record<BankId, string | undefined> = {
-    bbva: env.BANK_ACCOUNT_ID_BBVA,
-    caixabank: env.BANK_ACCOUNT_ID_CAIXABANK,
-    imaginbank: env.BANK_ACCOUNT_ID_IMAGINBANK,
-  };
-
-  const accountId = accountIds[bank]?.trim();
-  if (!accountId) {
-    const variableName = `BANK_ACCOUNT_ID_${bank.toUpperCase()}`;
-    throw new Error(`Missing Firefly account mapping: ${variableName}`);
-  }
-
-  return accountId;
-}
+import { resolveImportTarget } from "./accounts.js";
 
 export interface ImportOptions {
   dryRun?: boolean; // If true, don't actually create transactions
@@ -50,13 +36,13 @@ export async function importBankStatement(
   const detection = detectBank(buffer, fileName);
   if (!detection) {
     throw new Error(
-      `Could not detect bank from file "${fileName}". Supported formats: BBVA (.xlsx), CaixaBank (.xls), ImaginBank (.csv)`
+      `Could not detect bank from file "${fileName}". Supported formats: BBVA (.xlsx), CaixaBank (.xls/.csv), ImaginBank (.csv)`
     );
   }
 
   const { bank } = detection;
   const bankName = getBankName(bank);
-  const accountId = getBankAccountId(bank, env);
+  const target = resolveImportTarget(bank, fileName, env);
 
   // Parse transactions
   let transactions: ParsedTransaction[];
@@ -72,6 +58,7 @@ export async function importBankStatement(
     return {
       bank,
       bankName,
+      accountName: target.accountName,
       totalParsed: 0,
       created: 0,
       duplicates: 0,
@@ -84,6 +71,7 @@ export async function importBankStatement(
     return {
       bank,
       bankName,
+      accountName: target.accountName,
       totalParsed: transactions.length,
       created: transactions.length,
       duplicates: 0,
@@ -100,21 +88,42 @@ export async function importBankStatement(
   const hashTTL = getHashTTLSeconds(env.IMPORT_HASH_TTL_DAYS);
 
   // DUPLICATE DETECTION: Generate hashes for all transactions
-  const transactionHashes: { tx: ParsedTransaction; hash: string; index: number }[] = [];
+  const transactionHashes: {
+    tx: ParsedTransaction;
+    hash: string;
+    legacyHash?: string;
+    index: number;
+  }[] = [];
+  const allowLegacyHash = bank === target.bank;
   for (let i = 0; i < transactions.length; i++) {
     const tx = transactions[i];
-    const hash = await generateImportHash(chatId, bank, tx.date, tx.amount, tx.description);
-    transactionHashes.push({ tx, hash, index: i });
+    const hash = await generateImportHash(target.accountId, tx.date, tx.amount, tx.description);
+    const legacyHash = allowLegacyHash
+      ? await generateLegacyImportHash(chatId, bank, tx.date, tx.amount, tx.description)
+      : undefined;
+    transactionHashes.push({ tx, hash, legacyHash, index: i });
   }
 
   // Batch check which hashes already exist in KV
   const allHashes = transactionHashes.map((t) => t.hash);
   const existingHashes = await batchCheckHashes(env.IMPORT_HASHES, allHashes);
+  const legacyHashes = transactionHashes
+    .map(({ legacyHash }) => legacyHash)
+    .filter((hash): hash is string => Boolean(hash));
+  const existingLegacyHashes = await batchCheckHashes(env.IMPORT_HASHES, legacyHashes);
 
   // Process transactions
-  for (const { tx, hash, index } of transactionHashes) {
+  for (const { tx, hash, legacyHash, index } of transactionHashes) {
     // Check if this transaction was already imported (hash exists in KV)
-    if (existingHashes.has(hash)) {
+    if (existingHashes.has(hash) || (legacyHash && existingLegacyHashes.has(legacyHash))) {
+      if (!existingHashes.has(hash)) {
+        await storeHash(
+          env.IMPORT_HASHES,
+          hash,
+          createHashData(chatId, target.bank, target.accountId, tx.date, tx.amount, tx.description),
+          hashTTL,
+        );
+      }
       duplicates++;
       continue; // Skip - already imported
     }
@@ -133,15 +142,22 @@ export async function importBankStatement(
           amount,
           description: tx.description,
           notes: tx.notes,
-          source_account_id: isWithdrawal ? accountId : undefined,
-          destination_account_id: !isWithdrawal ? accountId : undefined,
-          tags: ["bank-import", `import-${bank}`],
+          source_account_id: isWithdrawal ? target.accountId : undefined,
+          destination_account_id: !isWithdrawal ? target.accountId : undefined,
+          tags: ["bank-import", `import-${target.bank}`],
         },
         env
       );
 
       // Store hash in KV to prevent future duplicates
-      const hashData = createHashData(chatId, bank, tx.date, tx.amount, tx.description);
+      const hashData = createHashData(
+        chatId,
+        target.bank,
+        target.accountId,
+        tx.date,
+        tx.amount,
+        tx.description,
+      );
       await storeHash(env.IMPORT_HASHES, hash, hashData, hashTTL);
 
       created++;
@@ -166,6 +182,7 @@ export async function importBankStatement(
   return {
     bank,
     bankName,
+    accountName: target.accountName,
     totalParsed: transactions.length,
     created,
     duplicates,
@@ -177,7 +194,7 @@ export async function importBankStatement(
 export function formatImportResult(result: ImportResult, lang: "es" | "en"): string {
   const messages = {
     es: {
-      title: `📥 Importación de ${result.bankName}`,
+      title: `📥 Importación de ${result.bankName} → ${result.accountName}`,
       parsed: `Transacciones encontradas: ${result.totalParsed}`,
       created: `✅ Creadas: ${result.created}`,
       duplicates: `⏭️ Duplicadas (omitidas): ${result.duplicates}`,
@@ -186,7 +203,7 @@ export function formatImportResult(result: ImportResult, lang: "es" | "en"): str
       noTransactions: "No se encontraron transacciones en el archivo.",
     },
     en: {
-      title: `📥 ${result.bankName} Import`,
+      title: `📥 ${result.bankName} import → ${result.accountName}`,
       parsed: `Transactions found: ${result.totalParsed}`,
       created: `✅ Created: ${result.created}`,
       duplicates: `⏭️ Duplicates (skipped): ${result.duplicates}`,

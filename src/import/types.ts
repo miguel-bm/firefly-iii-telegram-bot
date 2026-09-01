@@ -21,6 +21,7 @@ export interface BankConfig {
 export interface ImportResult {
   bank: BankId;
   bankName: string;
+  accountName: string;
   totalParsed: number;
   created: number;
   duplicates: number;

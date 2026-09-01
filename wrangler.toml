@@ -39,6 +39,11 @@ BANK_IMPORT_REMINDER_DAYS = "10"         # Remind if no bank imports in N days
 # - FIREFLY_API_URL (e.g., https://firefly.yourdomain.com)
 # - FIREFLY_API_TOKEN
 # - OPENAI_API_KEY
+# - BANK_ACCOUNT_SUFFIX_CAIXABANK
+# - BANK_ACCOUNT_SUFFIX_IMAGINBANK
+# - BANK_ACCOUNT_NAME_BBVA
+# - BANK_ACCOUNT_NAME_CAIXABANK
+# - BANK_ACCOUNT_NAME_IMAGINBANK
 
 # Durable Objects for Cloudflare Agents
 [[durable_objects.bindings]]

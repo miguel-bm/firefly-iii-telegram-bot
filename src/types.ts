@@ -5,6 +5,11 @@ export interface Env extends Cloudflare.Env {
     // Optional secrets that are intentionally not declared in wrangler.toml.
     IMPORT_HASH_TTL_DAYS?: string;       // TTL for import hash cache (default: 365 days)
     TELEGRAM_ALLOWED_USER_IDS?: string;
+    BANK_ACCOUNT_SUFFIX_CAIXABANK: string;
+    BANK_ACCOUNT_SUFFIX_IMAGINBANK: string;
+    BANK_ACCOUNT_NAME_BBVA: string;
+    BANK_ACCOUNT_NAME_CAIXABANK: string;
+    BANK_ACCOUNT_NAME_IMAGINBANK: string;
 }
 
 export type HonoContext = Context<{ Bindings: Env }>;

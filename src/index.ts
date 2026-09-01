@@ -7,6 +7,7 @@ import { ChatAgentDO } from "./agent.js";
 import { processMessage, getMessages, type AgentProxy, type StreamContext } from "./bot.js";
 import { handleScheduled } from "./cron.js";
 import { importBankStatement, formatImportResult } from "./import/importer.js";
+import { ImportAccountError } from "./import/accounts.js";
 import { parseIdList } from "./webapp/auth.js";
 import { parsePositiveInt, ValidationError } from "./webapp/validation.js";
 import { assertStatementFile, readResponseWithLimit } from "./import/file.js";
@@ -178,6 +179,10 @@ app.post("/telegram/webhook", async (c) => {
             await ctx.reply(message);
         } catch (error) {
             console.error("Import error:", error);
+            if (error instanceof ImportAccountError) {
+                await ctx.reply(error.localized(lang));
+                return;
+            }
             const errorMsg = error instanceof ValidationError
                 ? error.message
                 : (lang === "es" ? "No se pudo importar el archivo." : "The file could not be imported.");
