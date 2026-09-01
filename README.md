@@ -131,7 +131,8 @@ BOT_LANGUAGE = "en"                   # "es" for Spanish, "en" for English
 BOT_TIMEZONE = "Europe/London"        # Your timezone
 MAX_HISTORY_MESSAGES = "20"           # Conversation memory limit
 ENABLE_MONTHLY_REPORT = "true"        # Send monthly report on 1st of month
-BANK_IMPORT_REMINDER_DAYS = "10"      # Days without imports before reminder (0 to disable)
+BANK_IMPORT_REMINDER_DAYS = "10"      # Days without an account upload before reminder (0 to disable)
+BANK_IMPORT_REMINDER_REPEAT_DAYS = "3" # Minimum days before repeating a stale-account reminder
 ```
 
 ### 7. Set Secrets
@@ -284,6 +285,7 @@ The choice expires after 15 minutes and is accepted only from the original uploa
 | `MAX_HISTORY_MESSAGES` | Messages to keep in memory | `20` |
 | `ENABLE_MONTHLY_REPORT` | Send monthly spending report | `true` |
 | `BANK_IMPORT_REMINDER_DAYS` | Days before import reminder | `10` |
+| `BANK_IMPORT_REMINDER_REPEAT_DAYS` | Minimum days before repeating a reminder for the same stale account | `3` |
 | `IMPORT_HASH_TTL_DAYS` | Days to keep import hashes | `365` |
 
 ### Secrets (via `wrangler secret put`)

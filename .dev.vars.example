@@ -20,3 +20,4 @@ BANK_ACCOUNT_NAME_IMAGINBANK=ImaginBank
 # Optional: Default cash account ID (get from Firefly III)
 DEFAULT_ACCOUNT_ID=1
 DASHBOARD_WEBAPP_URL=https://t.me/your_bot/your_app
+BANK_IMPORT_REMINDER_REPEAT_DAYS=3

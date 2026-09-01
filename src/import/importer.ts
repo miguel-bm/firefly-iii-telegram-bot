@@ -17,6 +17,7 @@ import {
   batchCheckHashes,
 } from "./hash.js";
 import { resolveImportTarget } from "./accounts.js";
+import { recordImportFreshness } from "./freshness.js";
 
 export interface ImportOptions {
   dryRun?: boolean; // If true, don't actually create transactions
@@ -58,6 +59,7 @@ export async function importBankStatement(
   const target = resolveImportTarget(bank, fileName, env, targetBank);
 
   if (transactions.length === 0) {
+    if (!dryRun) await recordImportFreshness(env.IMPORT_HASHES, target, transactions);
     return {
       bank,
       bankName,
@@ -178,8 +180,8 @@ export async function importBankStatement(
     }
   }
 
-  if (created > 0 || duplicates > 0) {
-    await env.IMPORT_HASHES.put("last-bank-import", new Date().toISOString());
+  if (errors.length === 0) {
+    await recordImportFreshness(env.IMPORT_HASHES, target, transactions);
   }
 
   return {

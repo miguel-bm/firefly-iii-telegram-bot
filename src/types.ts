@@ -2,6 +2,7 @@ import type { Context } from "hono";
 
 // Environment bindings for Cloudflare Worker
 export interface Env extends Cloudflare.Env {
+    BANK_IMPORT_REMINDER_REPEAT_DAYS: string;
     // Optional secrets that are intentionally not declared in wrangler.toml.
     IMPORT_HASH_TTL_DAYS?: string;       // TTL for import hash cache (default: 365 days)
     TELEGRAM_ALLOWED_USER_IDS?: string;

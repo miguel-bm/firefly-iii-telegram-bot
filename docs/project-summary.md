@@ -135,7 +135,7 @@ src/
 
 #### `src/cron.ts`
 - `handleMonthlyReport()` - Sends report link on 1st of month
-- `handleBankImportReminder()` - Checks for external transactions, sends reminder if none
+- `handleBankImportReminder()` - Tracks each configured account and sends a consolidated, throttled reminder for stale accounts
 - `handleScheduled()` - Dispatcher for cron patterns
 
 #### `src/tools/firefly.ts`
@@ -172,6 +172,7 @@ src/
 | `MAX_HISTORY_MESSAGES` | Message memory limit | `"20"` |
 | `ENABLE_MONTHLY_REPORT` | Send monthly report on 1st of month | `"true"` |
 | `BANK_IMPORT_REMINDER_DAYS` | Days without bank imports before reminder | `"10"` |
+| `BANK_IMPORT_REMINDER_REPEAT_DAYS` | Minimum days before repeating a stale-account reminder | `"3"` |
 
 ### Secrets (set via `wrangler secret put`)
 
@@ -260,7 +261,7 @@ crons = [
 
 ### ✅ Scheduled Jobs (Cron)
 - **Monthly report**: On 1st of month at 9:00 UTC, sends link to previous month's report
-- **Bank import reminder**: Daily at 10:00 UTC, checks for external transactions; if none in N days, sends reminder
+- **Bank import reminder**: Daily at 10:00 UTC, checks successful uploads per configured account and names only stale accounts; repeat reminders are throttled
 
 ### ✅ Bank Statement Import
 - Upload Excel (.xlsx, .xls) or CSV files directly to Telegram

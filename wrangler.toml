@@ -26,6 +26,7 @@ MAX_HISTORY_MESSAGES = "20"   # Number of messages to keep in memory
 # Cron job settings
 ENABLE_MONTHLY_REPORT = "true"           # Send monthly report link on 1st of each month
 BANK_IMPORT_REMINDER_DAYS = "10"         # Remind if no bank imports in N days
+BANK_IMPORT_REMINDER_REPEAT_DAYS = "3"  # Repeat a stale-account reminder at most every N days
 
 # Web App (dashboard) - Use t.me direct Mini App link format
 # Set up via BotFather: /newapp -> select bot -> enter webapp URL -> get short name
