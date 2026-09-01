@@ -14,6 +14,9 @@ not_found_handling = "single-page-application"
 [vars]
 DEFAULT_CURRENCY = "EUR"
 DEFAULT_ACCOUNT_ID = "151"
+BANK_ACCOUNT_ID_BBVA = "9"
+BANK_ACCOUNT_ID_CAIXABANK = "1"
+BANK_ACCOUNT_ID_IMAGINBANK = "65"
 BOT_LANGUAGE = "es"           # "es" for Spanish, "en" for English
 BOT_TIMEZONE = "Europe/Madrid"
 MAX_HISTORY_MESSAGES = "20"   # Number of messages to keep in memory
@@ -63,4 +66,3 @@ crons = [
     "0 9 1 * *",   # Monthly report: 1st of month at 9:00 UTC
     "0 10 * * *"   # Daily bank import check: every day at 10:00 UTC
 ]
-

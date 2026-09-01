@@ -15,6 +15,9 @@ export interface Env {
     // Environment variables
     DEFAULT_CURRENCY: string;
     DEFAULT_ACCOUNT_ID?: string;
+    BANK_ACCOUNT_ID_BBVA: string;
+    BANK_ACCOUNT_ID_CAIXABANK: string;
+    BANK_ACCOUNT_ID_IMAGINBANK: string;
     BOT_LANGUAGE: "es" | "en";
     BOT_TIMEZONE: string;
     MAX_HISTORY_MESSAGES: string;
@@ -168,4 +171,3 @@ export type StreamEvent =
     | { type: "text"; content: string }
     | { type: "done"; chartUrl?: string }
     | { type: "error"; message: string };
-

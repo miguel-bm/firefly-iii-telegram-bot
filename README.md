@@ -123,6 +123,9 @@ Edit `wrangler.toml` to set your configuration:
 [vars]
 DEFAULT_CURRENCY = "EUR"              # Your currency code
 DEFAULT_ACCOUNT_ID = "1"              # Your default cash/checking account ID from Firefly III
+BANK_ACCOUNT_ID_BBVA = "9"             # Firefly asset account used for BBVA imports
+BANK_ACCOUNT_ID_CAIXABANK = "1"        # Firefly asset account used for CaixaBank imports
+BANK_ACCOUNT_ID_IMAGINBANK = "65"      # Firefly asset account used for ImaginBank imports
 BOT_LANGUAGE = "en"                   # "es" for Spanish, "en" for English
 BOT_TIMEZONE = "Europe/London"        # Your timezone
 MAX_HISTORY_MESSAGES = "20"           # Conversation memory limit
@@ -258,6 +261,9 @@ Simply upload an Excel (.xlsx, .xls) or CSV file from a supported bank. The bot 
 |----------|-------------|---------|
 | `DEFAULT_CURRENCY` | Currency code for transactions | `EUR` |
 | `DEFAULT_ACCOUNT_ID` | Firefly III account ID for expenses | Required |
+| `BANK_ACCOUNT_ID_BBVA` | Firefly asset account ID for BBVA imports | Required for BBVA imports |
+| `BANK_ACCOUNT_ID_CAIXABANK` | Firefly asset account ID for CaixaBank imports | Required for CaixaBank imports |
+| `BANK_ACCOUNT_ID_IMAGINBANK` | Firefly asset account ID for ImaginBank imports | Required for ImaginBank imports |
 | `BOT_LANGUAGE` | Bot language: `es` or `en` | `es` |
 | `BOT_TIMEZONE` | Timezone for date handling | `Europe/Madrid` |
 | `MAX_HISTORY_MESSAGES` | Messages to keep in memory | `20` |
@@ -309,15 +315,13 @@ The bot uses whatever currency code you set in `DEFAULT_CURRENCY`. Firefly III h
 
 3. **Register the parser** in `parseStatementFile()` in `src/import/parsers.ts`
 
-4. **Add bank account mapping** in `src/import/importer.ts`:
+4. **Add a bank account environment variable** in `src/types.ts` and resolve it in `src/import/importer.ts`:
    ```typescript
-   const BANK_ACCOUNTS: Record<BankId, string> = {
-     // ... existing banks
-     yourbank: "YOUR_FIREFLY_ACCOUNT_ID",
-   };
+   // wrangler.toml
+   BANK_ACCOUNT_ID_YOURBANK = "YOUR_FIREFLY_ACCOUNT_ID"
    ```
 
-> **Note**: Bank account IDs are currently hardcoded. For production use with multiple users, consider moving these to environment variables or a configuration system.
+> **Note**: Bank account IDs are deployment configuration. Keep them aligned with the asset account IDs in your Firefly III instance.
 
 ## Local Development
 
@@ -362,7 +366,7 @@ The bot uses whatever currency code you set in `DEFAULT_CURRENCY`. Firefly III h
 ## Limitations
 
 - **Single-user focused**: Designed for personal use with restricted chat ID access
-- **Hardcoded bank accounts**: Bank import account IDs need manual configuration
+- **Configured bank accounts**: Each supported bank needs a Firefly asset account ID in `wrangler.toml`
 - **No receipt OCR**: Photos/images are not processed
 - **Spanish/English only**: Two languages currently supported
 - **Three banks only**: BBVA, CaixaBank, ImaginBank (contributions welcome!)

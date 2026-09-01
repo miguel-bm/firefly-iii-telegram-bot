@@ -11,6 +11,10 @@ worker-configuration.d.ts
 .env.*
 .dev.vars
 
+# Private financial/import data
+bank_statement_examples/
+scripts/hashes-bulk.json
+
 # IDE
 .idea/
 .vscode/

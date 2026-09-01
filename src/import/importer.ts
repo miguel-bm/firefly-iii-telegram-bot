@@ -16,13 +16,21 @@ import {
   batchCheckHashes,
 } from "./hash.js";
 
-// Bank account IDs in Firefly III (these need to match your Firefly setup)
-// TODO: These should ideally come from environment variables or config
-const BANK_ACCOUNTS: Record<BankId, string> = {
-  bbva: "9", // From import config: default_account: 9
-  caixabank: "1", // From import config: default_account: 1
-  imaginbank: "65", // From import config: default_account: 65
-};
+function getBankAccountId(bank: BankId, env: Env): string {
+  const accountIds: Record<BankId, string | undefined> = {
+    bbva: env.BANK_ACCOUNT_ID_BBVA,
+    caixabank: env.BANK_ACCOUNT_ID_CAIXABANK,
+    imaginbank: env.BANK_ACCOUNT_ID_IMAGINBANK,
+  };
+
+  const accountId = accountIds[bank]?.trim();
+  if (!accountId) {
+    const variableName = `BANK_ACCOUNT_ID_${bank.toUpperCase()}`;
+    throw new Error(`Missing Firefly account mapping: ${variableName}`);
+  }
+
+  return accountId;
+}
 
 export interface ImportOptions {
   dryRun?: boolean; // If true, don't actually create transactions
@@ -48,7 +56,7 @@ export async function importBankStatement(
 
   const { bank } = detection;
   const bankName = getBankName(bank);
-  const accountId = BANK_ACCOUNTS[bank];
+  const accountId = getBankAccountId(bank, env);
 
   // Parse transactions
   let transactions: ParsedTransaction[];
