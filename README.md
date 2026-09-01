@@ -328,7 +328,7 @@ The bot uses whatever currency code you set in `DEFAULT_CURRENCY`. Firefly III h
    // Then add detection patterns in detectFromExcel() or detectFromCSV()
    ```
 
-2. **Add parser** in `src/import/parsers.ts`:
+2. **Add parser** in `src/import/parsers/yourbank.ts`:
    ```typescript
    export function parseYourBank(buffer: ArrayBuffer): ParsedTransaction[] {
      // Parse your bank's format
@@ -336,7 +336,7 @@ The bot uses whatever currency code you set in `DEFAULT_CURRENCY`. Firefly III h
    }
    ```
 
-3. **Register the parser** in `parseStatementFile()` in `src/import/parsers.ts`
+3. **Register and re-export the parser** in the `src/import/parsers.ts` facade
 
 4. **Add a bank account environment variable** in `src/types.ts` and resolve it in `src/import/importer.ts`:
    ```typescript

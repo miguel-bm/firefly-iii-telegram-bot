@@ -52,7 +52,8 @@ src/
 └── import/
     ├── types.ts      # Import types
     ├── detector.ts   # Bank auto-detection
-    ├── parsers.ts    # Excel/CSV parsers (BBVA, CaixaBank, ImaginBank)
+    ├── parsers.ts    # Stable parser facade
+    ├── parsers/      # Shared helpers and one parser module per bank
     └── importer.ts   # Import orchestration
 ```
 

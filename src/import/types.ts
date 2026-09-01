@@ -9,14 +9,6 @@ export interface ParsedTransaction {
   notes?: string;
 }
 
-// Bank configuration
-export interface BankConfig {
-  id: BankId;
-  name: string;
-  defaultAccountId: string;
-  dateFormat: string;
-}
-
 // Import result
 export interface ImportResult {
   bank: BankId;

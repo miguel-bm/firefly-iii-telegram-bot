@@ -27,6 +27,8 @@ describe("Mini App routes", () => {
     const env = {
         TELEGRAM_BOT_TOKEN: token,
         TELEGRAM_ALLOWED_CHAT_ID: "42",
+        FIREFLY_API_URL: "https://firefly.example",
+        FIREFLY_API_TOKEN: "test-token",
     } as unknown as Env;
 
     it("requires Telegram authentication", async () => {
@@ -45,5 +47,16 @@ describe("Mini App routes", () => {
         }, env);
         expect(response.status).toBe(400);
         await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining("positive") });
+    });
+
+    it.each([
+        "/api/accounts/not-an-id/history",
+        "/api/transactions/by-category",
+        "/api/expenses/by-category?start=bad-date",
+    ])("keeps validation active after route registration for %s", async (path) => {
+        const response = await testApp().request(path, {
+            headers: { "X-Telegram-Init-Data": authHeader(token) },
+        }, env);
+        expect(response.status).toBe(400);
     });
 });

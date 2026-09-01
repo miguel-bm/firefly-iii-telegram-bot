@@ -25,6 +25,11 @@ import {
 } from "./StackedExpenseChart";
 import { PieChart, ArrowLeft, BarChart3, TrendingUp, Layers } from "lucide-react";
 import { es } from "date-fns/locale";
+import {
+  formatCurrencyCompact,
+  formatCurrencyDecimals as formatCurrency,
+  formatCurrencyFull,
+} from "../lib/format";
 
 ChartJS.register(
   ArcElement,
@@ -735,43 +740,3 @@ export function CategoryChart({
 
 // Legacy export for backwards compatibility
 export { CategoryChart as ExpenseChart };
-
-function formatCurrency(amount: number, currency: string, decimals = 2): string {
-  return new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  }).format(amount);
-}
-
-function formatCurrencyCompact(amount: number, currency: string): string {
-  if (amount >= 1000) {
-    return new Intl.NumberFormat("es-ES", {
-      style: "currency",
-      currency,
-      notation: "compact",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 1,
-    }).format(amount);
-  }
-  return formatCurrency(amount, currency);
-}
-
-function formatCurrencyFull(amount: number, currency: string): string {
-  if (amount >= 10000) {
-    return new Intl.NumberFormat("es-ES", {
-      style: "currency",
-      currency,
-      notation: "compact",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 1,
-    }).format(amount);
-  }
-  return new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-}

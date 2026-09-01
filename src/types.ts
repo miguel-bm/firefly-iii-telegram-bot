@@ -97,24 +97,6 @@ export interface CreateTransactionInput {
     notes?: string;
 }
 
-export interface QueryTransactionsInput {
-    date_from?: string;
-    date_to?: string;
-    filters?: {
-        category_name?: string;
-        text_contains?: string;
-        tag?: string;
-        transaction_type?: "withdrawal" | "deposit" | "transfer";
-        min_amount?: number;
-        max_amount?: number;
-    };
-    aggregate?: {
-        kind: "sum" | "count" | "avg";
-        group_by?: "category" | "month" | "week" | "day" | "merchant" | "tag";
-    };
-    limit?: number;
-}
-
 // Agent response that may include charts
 export interface AgentResponse {
     text: string;

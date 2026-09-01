@@ -154,93 +154,6 @@ export class FireflyClient {
         };
     }
 
-    async getRecentTransactions(limit = 5): Promise<FireflySearchResult[]> {
-        // Get recent transactions for context
-        return this.searchTransactions("*", limit);
-    }
-
-    // Create transaction with duplicate hash checking (for imports)
-    async createTransactionWithDuplicateCheck(
-        input: CreateTransactionInput,
-        env: Env
-    ): Promise<{ id: string; description: string; isDuplicate: boolean }> {
-        const txType = input.type ?? "withdrawal";
-        const tags = [...(input.tags ?? [])];
-
-        const payload = {
-            error_if_duplicate_hash: true, // Enable duplicate detection
-            apply_rules: true,
-            fire_webhooks: true,
-            transactions: [
-                {
-                    type: txType,
-                    date: input.date,
-                    amount: String(input.amount),
-                    description: input.description,
-                    currency_code: input.currency ?? env.DEFAULT_CURRENCY,
-                    category_name: input.category_name ?? undefined,
-                    source_id:
-                        txType === "withdrawal"
-                            ? input.source_account_id ?? env.DEFAULT_ACCOUNT_ID
-                            : undefined,
-                    destination_name:
-                        txType === "withdrawal"
-                            ? input.description
-                            : undefined,
-                    destination_id:
-                        txType === "deposit"
-                            ? input.destination_account_id ?? env.DEFAULT_ACCOUNT_ID
-                            : undefined,
-                    source_name:
-                        txType === "deposit"
-                            ? input.description
-                            : undefined,
-                    budget_id: input.budget_id,
-                    tags,
-                    notes: input.notes,
-                },
-            ],
-        };
-
-        interface CreateResponse {
-            data: {
-                id: string;
-                attributes: { transactions: { description: string }[] };
-            };
-        }
-
-        try {
-            const response = await this.request<CreateResponse>("/transactions", {
-                method: "POST",
-                body: JSON.stringify(payload),
-            });
-
-            return {
-                id: response.data.id,
-                description: response.data.attributes.transactions[0]?.description ?? "",
-                isDuplicate: false,
-            };
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "";
-            // Firefly returns 422 with "duplicate" message for hash duplicates
-            if (message.includes("Duplicate") || message.includes("duplicate")) {
-                return { id: "", description: input.description, isDuplicate: true };
-            }
-            throw error;
-        }
-    }
-
-    // Get transactions for a specific account and date range (for duplicate checking)
-    async getTransactionsForAccount(
-        accountId: string,
-        startDate: string,
-        endDate: string
-    ): Promise<FireflySearchResult[]> {
-        // Use search with account filter and date range
-        const query = `account_id:${accountId} date_after:${startDate} date_before:${endDate}`;
-        return this.searchTransactions(query, 500); // High limit for import checking
-    }
-
     async deleteTransaction(id: string): Promise<void> {
         await this.request(`/transactions/${id}`, {
             method: "DELETE",
@@ -362,41 +275,6 @@ export class FireflyClient {
         return response;
     }
 
-    async getBasicSummary(
-        start: string,
-        end: string,
-        currencyCode?: string
-    ): Promise<Record<string, BasicSummaryEntry>> {
-        const params = new URLSearchParams({ start, end });
-        if (currencyCode) params.set("currency_code", currencyCode);
-        const response = await this.request<Record<string, BasicSummaryEntry>>(
-            `/summary/basic?${params}`
-        );
-        return response;
-    }
-
-    async getExpenseTotal(
-        start: string,
-        end: string
-    ): Promise<InsightEntry[]> {
-        const params = new URLSearchParams({ start, end });
-        const response = await this.request<InsightEntry[]>(
-            `/insight/expense/total?${params}`
-        );
-        return response;
-    }
-
-    async getIncomeTotal(
-        start: string,
-        end: string
-    ): Promise<InsightEntry[]> {
-        const params = new URLSearchParams({ start, end });
-        const response = await this.request<InsightEntry[]>(
-            `/insight/income/total?${params}`
-        );
-        return response;
-    }
-
     // Get all accounts with balances
     async getAccounts(type?: "asset" | "expense" | "revenue" | "liability"): Promise<AccountInfo[]> {
         interface AccountsResponse {
@@ -486,14 +364,6 @@ export interface InsightEntry {
     name: string;
     difference: string;
     difference_float: number;
-    currency_id: string;
-    currency_code: string;
-}
-
-export interface BasicSummaryEntry {
-    key: string;
-    title: string;
-    monetary_value: number;
     currency_id: string;
     currency_code: string;
 }

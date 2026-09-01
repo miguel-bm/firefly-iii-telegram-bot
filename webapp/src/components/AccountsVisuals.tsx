@@ -6,6 +6,9 @@ import {
 import { Line } from "react-chartjs-2";
 import { Wallet, PiggyBank, CreditCard, TrendingUp, Smartphone, Home, FileText, Banknote } from "lucide-react";
 import type { Account } from "../lib/dashboard";
+import { formatCurrencyWhole as formatCurrency } from "../lib/format";
+
+export { formatCurrencyWhole as formatCurrency } from "../lib/format";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Filler);
 
@@ -498,15 +501,6 @@ export function AccountDistributionChart({
       )}
     </div>
   );
-}
-
-export function formatCurrency(amount: number, currency: string): string {
-  return new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
 }
 
 export function getAccountIcon(name: string, color: string): ReactNode {

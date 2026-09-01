@@ -15,6 +15,7 @@ import {
 import { BottomNav } from "./BottomNav";
 import type { Transaction } from "../lib/dashboard";
 import { createApiClient } from "../lib/api";
+import { formatCurrencyWithCents as formatCurrency } from "../lib/format";
 
 interface CategorizationWizardProps {
   colorScheme: string;
@@ -660,13 +661,4 @@ export function CategorizationWizard({
       {viewMode === "list" && <BottomNav currentPage="wizard" onNavigate={onNavigate} />}
     </div>
   );
-}
-
-function formatCurrency(amount: number, currency: string): string {
-  return new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
 }

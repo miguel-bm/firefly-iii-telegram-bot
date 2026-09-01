@@ -1,5 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { parseImaginBank } from "./parsers.js";
+import * as XLSX from "xlsx";
+import { parseBBVA, parseCaixaBank, parseImaginBank } from "./parsers.js";
+
+function workbookBuffer(rows: unknown[][], sheetName: string): ArrayBuffer {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), sheetName);
+    return XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+}
+
+describe("Excel bank parsers", () => {
+    it("keeps the BBVA parser available through the facade", () => {
+        const buffer = workbookBuffer([
+            ["", "F.Valor", "Fecha", "Concepto", "Movimiento", "Importe", "Divisa", "Disponible", "Divisa", "Observaciones"],
+            ["", "01/09/2026", "01/09/2026", "Coffee", "Card", -4.5, "EUR", 100, "EUR", "Note"],
+        ], "Informe BBVA");
+        expect(parseBBVA(buffer)).toEqual([{
+            date: "2026-09-01", description: "Coffee", amount: -4.5, notes: "Card - Note",
+        }]);
+    });
+
+    it("keeps the CaixaBank parser available through the facade", () => {
+        const buffer = workbookBuffer([
+            ["Fecha", "Fecha valor", "Movimiento", "Más datos", "Importe", "Saldo"],
+            ["01/09/2026", "01/09/2026", "Coffee", "Card", -4.5, 100],
+        ], "Movimientos_cuenta_test");
+        expect(parseCaixaBank(buffer)).toEqual([{
+            date: "2026-09-01", description: "Coffee", amount: -4.5, notes: "Card",
+        }]);
+    });
+});
 
 describe("ImaginBank parser", () => {
     it("handles quoted delimiters and European amounts", () => {

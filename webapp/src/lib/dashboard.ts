@@ -54,24 +54,11 @@ export interface CategoryTransactionData {
 
 export type Page = "dashboard" | "accounts" | "wizard" | "analysis";
 
+export { formatCurrencyWhole as formatCurrency } from "./format";
+
 // Helper to get month name in Spanish
 function getMonthName(date: Date): string {
-  return date.toLocaleDateString("es-ES", { month: "long" });
-}
-
-// Helper to capitalize first letter
-function capitalize(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-// Format currency
-export function formatCurrency(amount: number, currency = "EUR"): string {
-  return new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
+  return formatSpanishDate(date, { month: "long" });
 }
 
 // Generate period options dynamically
@@ -160,3 +147,4 @@ export function getUniqueTags(transactions: Transaction[]): string[] {
   });
   return Array.from(tags).sort();
 }
+import { capitalize, formatSpanishDate } from "./date";

@@ -94,10 +94,10 @@ src/
 ├── query/
 │   └── aggregate.ts      # Local aggregation for transaction queries
 └── import/
-    ├── index.ts          # Module exports
     ├── types.ts          # Import types (BankId, ParsedTransaction, ImportResult)
     ├── detector.ts       # Auto-detect bank from file content
-    ├── parsers.ts        # Excel/CSV parsers for BBVA, CaixaBank, ImaginBank
+    ├── parsers.ts        # Stable parser facade
+    ├── parsers/          # Shared helpers and one parser module per bank
     └── importer.ts       # Main import logic + Firefly transaction creation
 ```
 

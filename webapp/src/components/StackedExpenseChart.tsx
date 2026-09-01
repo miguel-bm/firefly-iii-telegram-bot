@@ -1,8 +1,12 @@
 import { Bar } from "react-chartjs-2";
 import type { ActiveElement, ChartEvent } from "chart.js";
 import { es } from "date-fns/locale";
+import {
+  formatCurrencyCompact,
+  formatCurrencyDecimals as formatCurrency,
+} from "../lib/format";
 
-interface TimeSeriesData { date: string; [category: string]: number | string; }
+import type { TimeSeriesData } from "../lib/dashboard";
 type TabType = "expenses" | "income";
 
 // Vibrant but refined color palette
@@ -281,25 +285,4 @@ export function StackedBarChart({
       </div>
     </>
   );
-}
-
-function formatCurrency(amount: number, currency: string, decimals = 2): string {
-  return new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  }).format(amount);
-}
-
-function formatCurrencyCompact(amount: number, currency: string): string {
-  if (amount >= 1000) {
-    return new Intl.NumberFormat("es-ES", {
-      style: "currency",
-      currency,
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(amount);
-  }
-  return formatCurrency(amount, currency);
 }

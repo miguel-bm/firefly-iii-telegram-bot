@@ -107,4 +107,4 @@ Minimal code organization (practical)
 	•	src/tools/firefly.ts — Firefly client + tool implementations
 	•	src/tools/stt.ts — Telegram file download + OpenAI transcription
 	•	src/query/aggregate.ts — local aggregations/grouping for lightweight query engine
-	•	src/import/ — Bank statement import module (detector, parsers, importer)
+	•	src/import/ — Bank statement import module (detector, per-bank parsers, importer)

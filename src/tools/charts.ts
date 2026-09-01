@@ -1,5 +1,3 @@
-import type { InsightEntry } from "./firefly.js";
-
 // Color palette for charts (clean, modern)
 const COLORS = [
     "#4F46E5", // indigo
@@ -70,25 +68,6 @@ export function buildChartConfig(
                 borderColor: borderColors,
             },
         ],
-    };
-}
-
-export function buildMultiDatasetChartConfig(
-    type: "bar" | "line",
-    title: string,
-    labels: string[],
-    datasets: { label: string; data: number[]; color: string }[]
-): ChartConfig {
-    return {
-        type,
-        title,
-        labels,
-        datasets: datasets.map((ds) => ({
-            label: ds.label,
-            data: ds.data,
-            backgroundColor: ds.color + "CC",
-            borderColor: ds.color,
-        })),
     };
 }
 
@@ -181,68 +160,5 @@ export async function generateQuickChartUrl(config: ChartConfig): Promise<string
     const chartJson = JSON.stringify(chartJsConfig);
     const encoded = encodeURIComponent(chartJson);
     return `https://quickchart.io/chart?c=${encoded}&w=600&h=400&bkg=white&f=png`;
-}
-
-// Transform Firefly insight data to chart data
-export function insightToChartData(
-    entries: InsightEntry[],
-    limit = 10
-): { label: string; value: number }[] {
-    return entries
-        .filter((e) => e.difference_float !== 0)
-        .sort((a, b) => Math.abs(b.difference_float) - Math.abs(a.difference_float))
-        .slice(0, limit)
-        .map((e) => ({
-            label: e.name || "Sin categoría",
-            value: e.difference_float,
-        }));
-}
-
-// Build expense by category chart
-export async function buildExpenseByCategoryChart(
-    entries: InsightEntry[],
-    title: string,
-    chartType: "pie" | "bar" | "doughnut" = "pie"
-): Promise<string> {
-    const data = insightToChartData(entries);
-    const config = buildChartConfig(chartType, title, data);
-    return generateQuickChartUrl(config);
-}
-
-// Build income vs expense comparison chart
-export async function buildIncomeVsExpenseChart(
-    months: string[],
-    incomeData: number[],
-    expenseData: number[],
-    title: string
-): Promise<string> {
-    const config = buildMultiDatasetChartConfig("bar", title, months, [
-        { label: "Ingresos", data: incomeData, color: "#10B981" },
-        { label: "Gastos", data: expenseData.map((v) => Math.abs(v)), color: "#EF4444" },
-    ]);
-    return generateQuickChartUrl(config);
-}
-
-// Build trend line chart
-export async function buildTrendChart(
-    labels: string[],
-    values: number[],
-    title: string,
-    datasetLabel: string
-): Promise<string> {
-    const config: ChartConfig = {
-        type: "line",
-        title,
-        labels,
-        datasets: [
-            {
-                label: datasetLabel,
-                data: values.map((v) => Math.abs(v)),
-                backgroundColor: [COLORS[0] + "33"],
-                borderColor: [COLORS[0]],
-            },
-        ],
-    };
-    return generateQuickChartUrl(config);
 }
 

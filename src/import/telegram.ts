@@ -13,8 +13,6 @@ import {
   parseImportCallback,
   savePendingImport,
 } from "./pending.js";
-import type { BankId } from "./types.js";
-
 type Language = "es" | "en";
 
 function messages(lang: Language) {

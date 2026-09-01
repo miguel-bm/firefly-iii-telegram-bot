@@ -13,6 +13,8 @@ import {
   FolderOpen,
 } from "lucide-react";
 import type { Transaction } from "../lib/dashboard";
+import { formatCurrencyWithCents as formatCurrency } from "../lib/format";
+import { capitalize, formatSpanishDate, formatSpanishTime } from "../lib/date";
 
 interface TransactionDetailProps {
   transaction: Transaction;
@@ -50,14 +52,14 @@ export function TransactionDetail({
   const typeLabel = isExpense ? "Gasto" : isIncome ? "Ingreso" : "Transferencia";
   const TypeIcon = isExpense ? ArrowDownLeft : isIncome ? ArrowUpRight : ArrowLeftRight;
 
-  const formattedDate = new Date(transaction.date).toLocaleDateString("es-ES", {
+  const formattedDate = formatSpanishDate(transaction.date, {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   });
 
-  const formattedTime = new Date(transaction.date).toLocaleTimeString("es-ES", {
+  const formattedTime = formatSpanishTime(transaction.date, {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -358,17 +360,4 @@ export function TransactionDetail({
       )}
     </div>
   );
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
-
-function capitalize(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
 }
