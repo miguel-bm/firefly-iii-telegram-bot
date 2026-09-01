@@ -1,3 +1,5 @@
+export const CHAT_MODEL = "gpt-5.6-luna";
+
 export const SYSTEM_PROMPTS = {
     es: (categories: string[], tags: string[], accounts: { id: string; name: string }[], currency: string, timezone: string) => {
         const now = new Date().toLocaleString("es-ES", { timeZone: timezone });

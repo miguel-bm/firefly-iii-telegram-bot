@@ -8,7 +8,7 @@ import type {
     StreamEvent,
 } from "./types.js";
 import { FireflyClient, getCachedCategories, getCachedTags, getCachedAssetAccounts } from "./tools/firefly.js";
-import { SYSTEM_PROMPTS, BUSY_MESSAGES, RESET_MESSAGES } from "./agent/config.js";
+import { CHAT_MODEL, SYSTEM_PROMPTS, BUSY_MESSAGES, RESET_MESSAGES } from "./agent/config.js";
 import { TOOLS } from "./agent/tools.js";
 import { executeTool } from "./agent/tool-executor.js";
 
@@ -163,7 +163,7 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
                 iterations++;
 
                 const response = await openai.chat.completions.create({
-                    model: "gpt-5-mini",
+                    model: CHAT_MODEL,
                     messages,
                     tools: TOOLS,
                     tool_choice: "auto",
@@ -277,7 +277,7 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
                 iterations++;
 
                 const stream = await openai.chat.completions.create({
-                    model: "gpt-5-mini",
+                    model: CHAT_MODEL,
                     messages,
                     tools: TOOLS,
                     tool_choice: "auto",
