@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   ChevronRight,
   Check,
@@ -13,7 +13,8 @@ import {
   Wallet,
 } from "lucide-react";
 import { BottomNav } from "./BottomNav";
-import type { Transaction } from "../App";
+import type { Transaction } from "../lib/dashboard";
+import { createApiClient } from "../lib/api";
 
 interface CategorizationWizardProps {
   colorScheme: string;
@@ -63,56 +64,34 @@ export function CategorizationWizard({
   const [categorySearch, setCategorySearch] = useState("");
   const [tagSearch, setTagSearch] = useState("");
 
-  const getHeaders = useCallback(() => {
-    const headers: HeadersInit = { "Content-Type": "application/json" };
-    if (initData) {
-      headers["X-Telegram-Init-Data"] = initData;
-    }
-    return headers;
-  }, [initData]);
+  const api = useMemo(() => createApiClient(initData || ""), [initData]);
 
   // Fetch uncategorized transactions
   const fetchUncategorized = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/transactions?limit=100&uncategorized=true", {
-        headers: getHeaders(),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        // Filter to only uncategorized (no category)
-        const uncategorized = (data.transactions || []).filter(
-          (tx: Transaction) => !tx.category
-        );
-        setTransactions(uncategorized);
-      }
+      const data = await api.get<{ transactions: Transaction[] }>("/api/transactions?limit=100&uncategorized=true");
+      setTransactions(data.transactions || []);
     } catch (err) {
       console.error("Fetch error:", err);
     } finally {
       setLoading(false);
     }
-  }, [getHeaders]);
+  }, [api]);
 
   // Fetch categories and tags
   const fetchMetadata = useCallback(async () => {
     try {
-      const [catRes, tagRes] = await Promise.all([
-        fetch("/api/categories", { headers: getHeaders() }),
-        fetch("/api/tags", { headers: getHeaders() }),
+      const [catData, tagData] = await Promise.all([
+        api.get<{ categories: Category[] }>("/api/categories"),
+        api.get<{ tags: TagItem[] }>("/api/tags"),
       ]);
-
-      if (catRes.ok) {
-        const data = await catRes.json();
-        setCategories(data.categories || []);
-      }
-      if (tagRes.ok) {
-        const data = await tagRes.json();
-        setTags(data.tags || []);
-      }
+      setCategories(catData.categories || []);
+      setTags(tagData.tags || []);
     } catch (err) {
       console.error("Fetch metadata error:", err);
     }
-  }, [getHeaders]);
+  }, [api]);
 
   useEffect(() => {
     fetchUncategorized();
@@ -143,30 +122,18 @@ export function CategorizationWizard({
 
     try {
       setSaving(true);
-      const res = await fetch(`/api/transactions/${selectedTransaction.id}`, {
-        method: "PUT",
-        headers: getHeaders(),
-        body: JSON.stringify({
+      await api.put(`/api/transactions/${selectedTransaction.id}`, {
           description: editDescription.trim() || selectedTransaction.description,
           date: editDate,
           category: editCategory,
           tags: editTags,
           notes: editNotes.trim() || null,
-        }),
       });
-
-      if (res.ok) {
-        setCompleted((prev) => new Set(prev).add(selectedTransaction.id));
-        // Update local transaction list
-        setTransactions((prev) =>
-          prev.map((tx) =>
-            tx.id === selectedTransaction.id
-              ? { ...tx, category: editCategory, tags: editTags, description: editDescription, notes: editNotes }
-              : tx
-          )
-        );
-        handleBackToList();
-      }
+      setCompleted((prev) => new Set(prev).add(selectedTransaction.id));
+      setTransactions((prev) => prev.map((tx) => tx.id === selectedTransaction.id
+        ? { ...tx, category: editCategory, tags: editTags, description: editDescription, notes: editNotes }
+        : tx));
+      handleBackToList();
     } catch (err) {
       console.error("Save error:", err);
     } finally {

@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { createApiClient } from "../lib/api";
 import {
   X,
   Check,
@@ -127,13 +128,7 @@ export function AddExpenseModal({
   const [categorySearch, setCategorySearch] = useState("");
   const [tagSearch, setTagSearch] = useState("");
 
-  const getHeaders = useCallback(() => {
-    const headers: HeadersInit = { "Content-Type": "application/json" };
-    if (initData) {
-      headers["X-Telegram-Init-Data"] = initData;
-    }
-    return headers;
-  }, [initData]);
+  const api = useMemo(() => createApiClient(initData || ""), [initData]);
 
   // Fetch categories and tags
   useEffect(() => {
@@ -141,26 +136,19 @@ export function AddExpenseModal({
 
     const fetchMetadata = async () => {
       try {
-        const [catRes, tagRes] = await Promise.all([
-          fetch("/api/categories", { headers: getHeaders() }),
-          fetch("/api/tags", { headers: getHeaders() }),
+        const [catData, tagData] = await Promise.all([
+          api.get<{ categories: Category[] }>("/api/categories"),
+          api.get<{ tags: TagItem[] }>("/api/tags"),
         ]);
-
-        if (catRes.ok) {
-          const data = await catRes.json();
-          setCategories(data.categories || []);
-        }
-        if (tagRes.ok) {
-          const data = await tagRes.json();
-          setTags(data.tags || []);
-        }
+        setCategories(catData.categories || []);
+        setTags(tagData.tags || []);
       } catch (err) {
         console.error("Fetch metadata error:", err);
       }
     };
 
     fetchMetadata();
-  }, [isOpen, getHeaders]);
+  }, [isOpen, api]);
 
   // Reset form when modal closes
   useEffect(() => {

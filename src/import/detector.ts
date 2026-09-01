@@ -40,7 +40,7 @@ export function detectBank(
   // Excel files - parse and check content
   if (ext === "xlsx" || ext === "xls") {
     try {
-      const workbook = XLSX.read(buffer, { type: "array" });
+      const workbook = XLSX.read(buffer, { type: "array", sheetRows: 11 });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
 

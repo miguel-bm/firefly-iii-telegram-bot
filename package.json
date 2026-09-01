@@ -5,29 +5,44 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "pnpm typecheck && pnpm test && pnpm build:webapp",
+    "audit:ci": "pnpm audit --prod --audit-level critical",
     "build:webapp": "cd webapp && pnpm install && pnpm run build",
     "deploy": "pnpm run build:webapp && wrangler deploy",
     "types": "wrangler types"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "packageManager": "pnpm@10.7.1",
   "dependencies": {
     "@grammyjs/auto-retry": "^2.0.2",
-    "@grammyjs/stream": "^1.0.0",
-    "agents": "^0.0.92",
-    "grammy": "^1.41.1",
-    "hono": "^4.11.3",
+    "@grammyjs/stream": "^1.1.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "agents": "^0.22.0",
+    "grammy": "^1.46.0",
+    "hono": "^4.13.5",
     "openai": "^6.15.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/node": "^25.0.3",
     "typescript": "^5.9.3",
+    "vitest": "^4.1.11",
     "wrangler": "^4.54.0"
   },
   "pnpm": {
+    "overrides": {
+      "ajv": "^8.18.0",
+      "fast-uri": "^3.1.5",
+      "router>path-to-regexp": "^8.4.0",
+      "body-parser": "^2.3.0",
+      "qs": "^6.15.2",
+      "ws": "^8.21.0"
+    },
     "onlyBuiltDependencies": [
       "esbuild",
       "workerd"

@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { cors } from "hono/cors";
 import { Bot } from "grammy";
 import { stream } from "@grammyjs/stream";
 import { autoRetry } from "@grammyjs/auto-retry";
@@ -8,511 +7,14 @@ import { ChatAgentDO } from "./agent.js";
 import { processMessage, getMessages, type AgentProxy, type StreamContext } from "./bot.js";
 import { handleScheduled } from "./cron.js";
 import { importBankStatement, formatImportResult } from "./import/importer.js";
-import { FireflyClient } from "./tools/firefly.js";
-import { createHmac } from "node:crypto";
+import { parseIdList } from "./webapp/auth.js";
+import { parsePositiveInt, ValidationError } from "./webapp/validation.js";
+import { assertStatementFile, readResponseWithLimit } from "./import/file.js";
+import { registerWebAppRoutes } from "./webapp/routes.js";
 
 const app = new Hono<{ Bindings: Env }>();
 
-// ============================================================================
-// Telegram WebApp Validation
-// ============================================================================
-
-interface TelegramUser {
-    id: number;
-    first_name: string;
-    last_name?: string;
-    username?: string;
-    language_code?: string;
-}
-
-interface WebAppInitData {
-    user?: TelegramUser;
-    auth_date: number;
-    hash: string;
-    query_id?: string;
-}
-
-function parseInitData(initData: string): Record<string, string> {
-    const params = new URLSearchParams(initData);
-    const result: Record<string, string> = {};
-    for (const [key, value] of params) {
-        result[key] = value;
-    }
-    return result;
-}
-
-function validateTelegramWebApp(initData: string, botToken: string): WebAppInitData | null {
-    try {
-        const parsed = parseInitData(initData);
-        const hash = parsed.hash;
-        if (!hash) return null;
-
-        // Build data-check-string (sorted alphabetically, excluding hash)
-        const dataCheckArr: string[] = [];
-        for (const key of Object.keys(parsed).sort()) {
-            if (key !== "hash") {
-                dataCheckArr.push(`${key}=${parsed[key]}`);
-            }
-        }
-        const dataCheckString = dataCheckArr.join("\n");
-
-        // HMAC-SHA256 signature validation
-        const secretKey = createHmac("sha256", "WebAppData").update(botToken).digest();
-        const calculatedHash = createHmac("sha256", secretKey)
-            .update(dataCheckString)
-            .digest("hex");
-
-        if (calculatedHash !== hash) {
-            console.log("WebApp hash mismatch");
-            return null;
-        }
-
-        // Check auth_date is not too old (allow 24 hours for dev)
-        const authDate = parseInt(parsed.auth_date || "0", 10);
-        const now = Math.floor(Date.now() / 1000);
-        if (now - authDate > 86400) {
-            console.log("WebApp auth_date too old");
-            return null;
-        }
-
-        return {
-            user: parsed.user ? JSON.parse(parsed.user) : undefined,
-            auth_date: authDate,
-            hash,
-            query_id: parsed.query_id,
-        };
-    } catch (error) {
-        console.error("WebApp validation error:", error);
-        return null;
-    }
-}
-
-// Middleware to validate Telegram WebApp requests
-async function webAppAuth(c: import("hono").Context<{ Bindings: Env }>, next: import("hono").Next) {
-    const initData = c.req.header("X-Telegram-Init-Data");
-
-    if (!initData) {
-        console.log("WebApp auth failed: Missing init data");
-        return c.json({ error: "Missing Telegram init data" }, 401);
-    }
-
-    console.log("WebApp auth: initData length:", initData.length);
-
-    const validated = validateTelegramWebApp(initData, c.env.TELEGRAM_BOT_TOKEN);
-    if (!validated) {
-        console.log("WebApp auth failed: Invalid init data");
-        return c.json({ error: "Invalid Telegram init data" }, 401);
-    }
-
-    // Verify user is allowed (supports comma-separated list of IDs)
-    const allowedIds = c.env.TELEGRAM_ALLOWED_CHAT_ID.split(",").map(id => id.trim());
-    if (validated.user && !allowedIds.includes(String(validated.user.id))) {
-        console.log("WebApp auth failed: User not authorized", validated.user.id);
-        return c.json({ error: "User not authorized" }, 403);
-    }
-
-    console.log("WebApp auth: Success for user", validated.user?.id);
-
-    // Store validated data in context
-    c.set("telegramUser", validated.user);
-    await next();
-}
-
-// Extend Hono context
-declare module "hono" {
-    interface ContextVariableMap {
-        telegramUser: TelegramUser | undefined;
-    }
-}
-
-// Health check
-app.get("/healthz", (c) => {
-    return c.json({ status: "ok", timestamp: new Date().toISOString() });
-});
-
-// ============================================================================
-// Web App API Routes
-// ============================================================================
-
-// CORS for development
-app.use("/api/*", cors({
-    origin: "*",
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "X-Telegram-Init-Data"],
-}));
-
-// Get recent transactions
-app.get("/api/transactions", webAppAuth, async (c) => {
-    try {
-        const client = new FireflyClient(c.env);
-        const limit = parseInt(c.req.query("limit") || "50", 10);
-        const type = c.req.query("type") as "withdrawal" | "deposit" | "transfer" | undefined;
-        const search = c.req.query("search") || "";
-        const start = c.req.query("start"); // YYYY-MM-DD
-        const end = c.req.query("end"); // YYYY-MM-DD
-
-        // Build search query
-        let query = "";
-
-        // Date range
-        if (start) {
-            query += `date_after:${start} `;
-        } else {
-            query += `date_after:${getDateDaysAgo(90)} `; // Default: last 90 days
-        }
-        if (end) {
-            query += `date_before:${end} `;
-        }
-
-        // Type filter
-        if (type) {
-            query += `type:${type} `;
-        }
-
-        // Text search
-        if (search) {
-            query += `"${search}" `;
-        }
-
-        const results = await client.searchTransactions(query.trim(), Math.min(limit, 100));
-
-        // Transform to simpler format for the webapp
-        const transactions = results.flatMap((r) =>
-            r.attributes.transactions.map((t) => ({
-                id: r.id,
-                date: t.date,
-                description: t.description,
-                amount: parseFloat(t.amount),
-                type: t.type,
-                category: t.category_name || null,
-                source: t.source_name,
-                destination: t.destination_name,
-                tags: t.tags || [],
-                notes: (t as unknown as Record<string, unknown>).notes || null,
-            }))
-        );
-
-        return c.json({ transactions });
-    } catch (error) {
-        console.error("API error:", error);
-        return c.json({ error: "Failed to fetch transactions" }, 500);
-    }
-});
-
-// Get expense summary by category (for chart)
-app.get("/api/expenses/by-category", webAppAuth, async (c) => {
-    try {
-        const client = new FireflyClient(c.env);
-        // Support both days (legacy) and start/end date params
-        const startParam = c.req.query("start");
-        const endParam = c.req.query("end");
-        const days = parseInt(c.req.query("days") || "30", 10);
-
-        const start = startParam || getDateDaysAgo(days);
-        const end = endParam || getToday();
-
-        const expenses = await client.getExpenseByCategory(start, end);
-
-        // Transform to chart-friendly format
-        const data = expenses
-            .filter((e) => e.difference_float < 0)
-            .map((e) => ({
-                category: e.name || "Sin categoría",
-                amount: Math.abs(e.difference_float),
-                currency: e.currency_code,
-            }))
-            .sort((a, b) => b.amount - a.amount);
-
-        return c.json({ data, period: { start, end } });
-    } catch (error) {
-        console.error("API error:", error);
-        return c.json({ error: "Failed to fetch expense summary" }, 500);
-    }
-});
-
-// Get income summary by category (for chart)
-app.get("/api/income/by-category", webAppAuth, async (c) => {
-    try {
-        const client = new FireflyClient(c.env);
-        // Support both days (legacy) and start/end date params
-        const startParam = c.req.query("start");
-        const endParam = c.req.query("end");
-        const days = parseInt(c.req.query("days") || "30", 10);
-
-        const start = startParam || getDateDaysAgo(days);
-        const end = endParam || getToday();
-
-        const income = await client.getIncomeByCategory(start, end);
-
-        // Transform to chart-friendly format (income has positive values)
-        const data = income
-            .filter((e) => e.difference_float > 0)
-            .map((e) => ({
-                category: e.name || "Sin categoría",
-                amount: e.difference_float,
-                currency: e.currency_code,
-            }))
-            .sort((a, b) => b.amount - a.amount);
-
-        return c.json({ data, period: { start, end } });
-    } catch (error) {
-        console.error("API error:", error);
-        return c.json({ error: "Failed to fetch income summary" }, 500);
-    }
-});
-
-// Get expenses grouped by time and category (for stacked bar chart)
-app.get("/api/expenses/by-time", webAppAuth, async (c) => {
-    try {
-        const client = new FireflyClient(c.env);
-        const start = c.req.query("start") || getDateDaysAgo(30);
-        const end = c.req.query("end") || getToday();
-        const type = c.req.query("type") || "withdrawal"; // withdrawal or deposit
-
-        // Search for all transactions in the period
-        const query = `type:${type} date_after:${start} date_before:${end}`;
-        const results = await client.searchTransactions(query, 500);
-
-        // Group by date and category
-        const grouped: Record<string, Record<string, number>> = {};
-        const categoriesSet = new Set<string>();
-
-        results.forEach((r) => {
-            r.attributes.transactions.forEach((t) => {
-                const date = t.date.split("T")[0];
-                const category = t.category_name || "Sin categoría";
-                categoriesSet.add(category);
-
-                if (!grouped[date]) grouped[date] = {};
-                if (!grouped[date][category]) grouped[date][category] = 0;
-                grouped[date][category] += Math.abs(parseFloat(t.amount));
-            });
-        });
-
-        // Sort categories by total amount (descending)
-        const categoryTotals = Array.from(categoriesSet).map(cat => ({
-            category: cat,
-            total: Object.values(grouped).reduce((sum, day) => sum + (day[cat] || 0), 0),
-        })).sort((a, b) => b.total - a.total);
-
-        // Take top 8 categories, group rest as "Otros"
-        const topCategories = categoryTotals.slice(0, 8).map(c => c.category);
-        const hasOthers = categoryTotals.length > 8;
-
-        // Transform to array format with dates
-        const data = Object.entries(grouped)
-            .map(([date, categories]) => {
-                const entry: Record<string, number | string> = { date };
-                topCategories.forEach(cat => {
-                    entry[cat] = categories[cat] || 0;
-                });
-                if (hasOthers) {
-                    entry["Otros"] = categoryTotals.slice(8).reduce(
-                        (sum, c) => sum + (categories[c.category] || 0), 0
-                    );
-                }
-                return entry;
-            })
-            .sort((a, b) => (a.date as string).localeCompare(b.date as string));
-
-        const categories = hasOthers ? [...topCategories, "Otros"] : topCategories;
-
-        return c.json({ data, categories, period: { start, end } });
-    } catch (error) {
-        console.error("API error:", error);
-        return c.json({ error: "Failed to fetch time-based expenses" }, 500);
-    }
-});
-
-// Get transactions for a specific category (for drill-down view)
-app.get("/api/transactions/by-category", webAppAuth, async (c) => {
-    try {
-        const client = new FireflyClient(c.env);
-        const category = c.req.query("category");
-        const type = c.req.query("type") || "withdrawal"; // withdrawal or deposit
-        const start = c.req.query("start") || getDateDaysAgo(30);
-        const end = c.req.query("end") || getToday();
-
-        if (!category) {
-            return c.json({ error: "Category parameter is required" }, 400);
-        }
-
-        // Search for transactions in this category
-        const query = `category_is:"${category}" type:${type} date_after:${start} date_before:${end}`;
-        const results = await client.searchTransactions(query, 100);
-
-        const transactions = results.flatMap((r) =>
-            r.attributes.transactions.map((t) => ({
-                id: r.id,
-                date: t.date,
-                amount: parseFloat(t.amount),
-                description: t.description,
-                type: t.type,
-                category: t.category_name || null,
-            }))
-        ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-        return c.json({ data: transactions, category, period: { start, end } });
-    } catch (error) {
-        console.error("API error:", error);
-        return c.json({ error: "Failed to fetch category transactions" }, 500);
-    }
-});
-
-// Get account balances (assets and liabilities)
-app.get("/api/accounts", webAppAuth, async (c) => {
-    try {
-        const client = new FireflyClient(c.env);
-        const [assets, liabilities] = await Promise.all([
-            client.getAccounts("asset"),
-            client.getAccounts("liability"),
-        ]);
-        return c.json({ assets, liabilities });
-    } catch (error) {
-        console.error("API error:", error);
-        return c.json({ error: "Failed to fetch accounts" }, 500);
-    }
-});
-
-// Get all categories
-app.get("/api/categories", webAppAuth, async (c) => {
-    try {
-        const client = new FireflyClient(c.env);
-        const categories = await client.getCategories();
-        return c.json({
-            categories: categories.map((cat) => ({
-                id: cat.id,
-                name: cat.name,
-            })),
-        });
-    } catch (error) {
-        console.error("API error:", error);
-        return c.json({ error: "Failed to fetch categories" }, 500);
-    }
-});
-
-// Get all tags
-app.get("/api/tags", webAppAuth, async (c) => {
-    try {
-        const client = new FireflyClient(c.env);
-        const tags = await client.getTags();
-        return c.json({
-            tags: tags.map((t) => ({
-                id: t.id,
-                tag: t.tag,
-            })),
-        });
-    } catch (error) {
-        console.error("API error:", error);
-        return c.json({ error: "Failed to fetch tags" }, 500);
-    }
-});
-
-// Get income/expense summary for a period
-app.get("/api/summary", webAppAuth, async (c) => {
-    try {
-        const client = new FireflyClient(c.env);
-        const start = c.req.query("start") || getDateDaysAgo(30);
-        const end = c.req.query("end") || getToday();
-
-        // Get all transactions for the period
-        const query = `date_after:${start} date_before:${end}`;
-        const results = await client.searchTransactions(query, 500);
-
-        let totalIncome = 0;
-        let totalExpenses = 0;
-
-        for (const r of results) {
-            for (const t of r.attributes.transactions) {
-                const amount = parseFloat(t.amount);
-                if (t.type === "deposit") {
-                    totalIncome += amount;
-                } else if (t.type === "withdrawal") {
-                    totalExpenses += amount;
-                }
-            }
-        }
-
-        return c.json({
-            income: totalIncome,
-            expenses: totalExpenses,
-            net: totalIncome - totalExpenses,
-            period: { start, end },
-        });
-    } catch (error) {
-        console.error("API error:", error);
-        return c.json({ error: "Failed to fetch summary" }, 500);
-    }
-});
-
-// Get account balance history
-app.get("/api/accounts/:id/history", webAppAuth, async (c) => {
-    try {
-        const client = new FireflyClient(c.env);
-        const accountId = c.req.param("id");
-        const start = c.req.query("start") || getDateDaysAgo(30);
-        const end = c.req.query("end") || getToday();
-
-        const history = await client.getAccountHistory(accountId, start, end);
-        return c.json({ history });
-    } catch (error) {
-        console.error("API error:", error);
-        return c.json({ error: "Failed to fetch account history" }, 500);
-    }
-});
-
-// Update a transaction
-app.put("/api/transactions/:id", webAppAuth, async (c) => {
-    try {
-        const client = new FireflyClient(c.env);
-        const transactionId = c.req.param("id");
-        const body = await c.req.json();
-
-        const result = await client.updateTransaction(transactionId, body);
-        return c.json({ success: true, transaction: result });
-    } catch (error) {
-        console.error("API error:", error);
-        return c.json({ error: "Failed to update transaction" }, 500);
-    }
-});
-
-// Create a new transaction (for quick expense entry)
-app.post("/api/transactions", webAppAuth, async (c) => {
-    try {
-        const client = new FireflyClient(c.env);
-        const body = await c.req.json();
-        const { amount, description, category, tags, date, sourceAccount } = body;
-
-        // Default to the configured default account if no source specified
-        const sourceAccountId = sourceAccount || c.env.DEFAULT_ACCOUNT_ID;
-
-        const result = await client.createTransaction({
-            type: "withdrawal",
-            amount: parseFloat(amount),
-            description,
-            date: date || getToday(),
-            source_account_id: sourceAccountId,
-            category_name: category || undefined,
-            tags: tags || [],
-        }, c.env);
-
-        return c.json({ success: true, transaction: result });
-    } catch (error) {
-        console.error("API error:", error);
-        return c.json({ error: "Failed to create transaction" }, 500);
-    }
-});
-
-// Helper functions
-function getToday(): string {
-    return new Date().toISOString().split("T")[0];
-}
-
-function getDateDaysAgo(days: number): string {
-    const date = new Date();
-    date.setDate(date.getDate() - days);
-    return date.toISOString().split("T")[0];
-}
+registerWebAppRoutes(app);
 
 // Helper to get agent stub and call methods via fetch
 async function callAgent(
@@ -580,8 +82,8 @@ app.post("/telegram/webhook", async (c) => {
         update.callback_query?.message?.chat?.id;
 
     // Verify allowed chat (supports comma-separated list of IDs)
-    const allowedChatIds = env.TELEGRAM_ALLOWED_CHAT_ID.split(",").map(id => id.trim());
-    if (chatId && !allowedChatIds.includes(String(chatId))) {
+    const allowedChatIds = parseIdList(env.TELEGRAM_ALLOWED_CHAT_ID);
+    if (!chatId || !allowedChatIds.includes(String(chatId))) {
         console.log(`Ignoring message from unauthorized chat: ${chatId}`);
         return c.json({ ok: true });
     }
@@ -650,6 +152,10 @@ app.post("/telegram/webhook", async (c) => {
 
         try {
             await ctx.replyWithChatAction("typing");
+            const maxBytes = parsePositiveInt(env.MAX_IMPORT_FILE_BYTES, 5 * 1024 * 1024, 20 * 1024 * 1024);
+            if (document.file_size && document.file_size > maxBytes) {
+                throw new ValidationError(`File exceeds the ${maxBytes}-byte upload limit`);
+            }
 
             // Download the file from Telegram
             const file = await ctx.api.getFile(document.file_id);
@@ -660,7 +166,8 @@ app.post("/telegram/webhook", async (c) => {
                 throw new Error(`Failed to download file: ${response.status}`);
             }
 
-            const buffer = await response.arrayBuffer();
+            const buffer = await readResponseWithLimit(response, maxBytes);
+            assertStatementFile(buffer, fileName);
 
             // Import the bank statement
             const chatId = String(ctx.chat?.id ?? "");
@@ -671,7 +178,9 @@ app.post("/telegram/webhook", async (c) => {
             await ctx.reply(message);
         } catch (error) {
             console.error("Import error:", error);
-            const errorMsg = error instanceof Error ? error.message : "Unknown error";
+            const errorMsg = error instanceof ValidationError
+                ? error.message
+                : (lang === "es" ? "No se pudo importar el archivo." : "The file could not be imported.");
             const response = lang === "es"
                 ? `❌ Error importando archivo: ${errorMsg}`
                 : `❌ Error importing file: ${errorMsg}`;

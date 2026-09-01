@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { lazy, useEffect, useState, useCallback, useMemo } from "react";
 import {
   Search,
   X,
@@ -9,173 +9,32 @@ import {
   Tag,
   FolderOpen,
 } from "lucide-react";
-import { CategoryChart } from "./components/ExpenseChart";
 import { TransactionList } from "./components/TransactionList";
 import { TransactionDetail } from "./components/TransactionDetail";
-import { AccountsPage } from "./components/AccountsPage";
-import { CategorizationWizard } from "./components/CategorizationWizard";
-import { SpendingAnalysis } from "./components/SpendingAnalysis";
 import { BottomNav } from "./components/BottomNav";
-import { AddExpenseModal } from "./components/AddExpenseModal";
 import { useTelegram } from "./hooks/useTelegram";
+import { createApiClient } from "./lib/api";
 
-export interface Transaction {
-  id: string;
-  date: string;
-  description: string;
-  amount: number;
-  type: string;
-  category: string | null;
-  source?: string;
-  destination?: string;
-  tags?: string[];
-  notes?: string | null;
-}
+import {
+  formatCurrency,
+  getPeriodOptions,
+  getUniqueCategories,
+  getUniqueTags,
+  type Account,
+  type CategoryTransactionData,
+  type ExpenseData,
+  type Page,
+  type SummaryData,
+  type TimeSeriesData,
+  type Transaction,
+} from "./lib/dashboard";
+export type { Account, ExpenseData, SummaryData, Transaction } from "./lib/dashboard";
 
-export interface ExpenseData {
-  category: string;
-  amount: number;
-  currency: string;
-}
-
-export interface Account {
-  id: string;
-  name: string;
-  current_balance: number;
-  currency_code: string;
-  type: string;
-}
-
-export interface SummaryData {
-  income: number;
-  expenses: number;
-  net: number;
-}
-
-type PeriodOption = {
-  label: string;
-  id: string;
-  getRange: () => { start: string; end: string };
-  isCustom?: boolean;
-};
-
-interface CategoryTransactionData {
-  id: string;
-  date: string;
-  amount: number;
-  description: string;
-  type?: string;
-  category?: string | null;
-}
-
-type Page = "dashboard" | "accounts" | "wizard" | "analysis";
-
-// Helper to get month name in Spanish
-function getMonthName(date: Date): string {
-  return date.toLocaleDateString("es-ES", { month: "long" });
-}
-
-// Helper to capitalize first letter
-function capitalize(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-// Format currency
-function formatCurrency(amount: number, currency = "EUR"): string {
-  return new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-// Generate period options dynamically
-function getPeriodOptions(customStart?: string, customEnd?: string): PeriodOption[] {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
-
-  const currentMonthStart = new Date(currentYear, currentMonth, 1);
-  const currentMonthEnd = new Date(currentYear, currentMonth + 1, 0);
-
-  const lastMonthStart = new Date(currentYear, currentMonth - 1, 1);
-  const lastMonthEnd = new Date(currentYear, currentMonth, 0);
-
-  const options: PeriodOption[] = [
-    {
-      label: "7 días",
-      id: "7d",
-      getRange: () => {
-        const end = new Date();
-        const start = new Date();
-        start.setDate(start.getDate() - 7);
-        return {
-          start: start.toISOString().split("T")[0],
-          end: end.toISOString().split("T")[0],
-        };
-      },
-    },
-    {
-      label: capitalize(getMonthName(currentMonthStart)),
-      id: "current-month",
-      getRange: () => ({
-        start: currentMonthStart.toISOString().split("T")[0],
-        end: currentMonthEnd.toISOString().split("T")[0],
-      }),
-    },
-    {
-      label: capitalize(getMonthName(lastMonthStart)),
-      id: "last-month",
-      getRange: () => ({
-        start: lastMonthStart.toISOString().split("T")[0],
-        end: lastMonthEnd.toISOString().split("T")[0],
-      }),
-    },
-    {
-      label: "1 año",
-      id: "1y",
-      getRange: () => {
-        const end = new Date();
-        const start = new Date();
-        start.setFullYear(start.getFullYear() - 1);
-        return {
-          start: start.toISOString().split("T")[0],
-          end: end.toISOString().split("T")[0],
-        };
-      },
-    },
-    {
-      label: "Personalizado",
-      id: "custom",
-      isCustom: true,
-      getRange: () => ({
-        start: customStart || now.toISOString().split("T")[0],
-        end: customEnd || now.toISOString().split("T")[0],
-      }),
-    },
-  ];
-
-  return options;
-}
-
-// Extract unique categories from transactions
-function getUniqueCategories(transactions: Transaction[]): string[] {
-  const categories = new Set<string>();
-  transactions.forEach((tx) => {
-    if (tx.category) categories.add(tx.category);
-  });
-  return Array.from(categories).sort();
-}
-
-// Extract unique tags from transactions
-function getUniqueTags(transactions: Transaction[]): string[] {
-  const tags = new Set<string>();
-  transactions.forEach((tx) => {
-    tx.tags?.forEach((tag) => tags.add(tag));
-  });
-  return Array.from(tags).sort();
-}
+const AccountsPage = lazy(() => import("./components/AccountsPage").then((module) => ({ default: module.AccountsPage })));
+const CategoryChart = lazy(() => import("./components/ExpenseChart").then((module) => ({ default: module.CategoryChart })));
+const CategorizationWizard = lazy(() => import("./components/CategorizationWizard").then((module) => ({ default: module.CategorizationWizard })));
+const SpendingAnalysis = lazy(() => import("./components/SpendingAnalysis").then((module) => ({ default: module.SpendingAnalysis })));
+const AddExpenseModal = lazy(() => import("./components/AddExpenseModal").then((module) => ({ default: module.AddExpenseModal })));
 
 function App() {
   const { initData, isReady, colorScheme, webApp } = useTelegram();
@@ -240,27 +99,18 @@ function App() {
   // Check if any filter is active
   const hasActiveFilters = searchQuery || typeFilter !== "all" || categoryFilter || tagFilter || dateFromFilter || dateToFilter;
 
-  // Build headers for API calls
-  const getHeaders = useCallback(() => {
-    const headers: HeadersInit = { "Content-Type": "application/json" };
-    if (initData) {
-      headers["X-Telegram-Init-Data"] = initData;
-    }
-    return headers;
-  }, [initData]);
+  const api = useMemo(() => createApiClient(initData), [initData]);
 
   // Fetch base data (accounts)
   const fetchAccounts = useCallback(async () => {
     try {
-      const res = await fetch("/api/accounts", { headers: getHeaders() });
-      if (!res.ok) throw new Error("Error al cargar cuentas");
-      const data = await res.json();
+      const data = await api.get<{ assets: Account[]; liabilities: Account[] }>("/api/accounts");
       setAssets(data.assets || []);
       setLiabilities(data.liabilities || []);
     } catch (err) {
       console.error("Fetch accounts error:", err);
     }
-  }, [getHeaders]);
+  }, [api]);
 
   // Fetch transactions
   const fetchTransactions = useCallback(async (searchAll = false) => {
@@ -269,14 +119,12 @@ function App() {
       if (searchAll && searchQuery) {
         params.set("search", searchQuery);
       }
-      const res = await fetch(`/api/transactions?${params}`, { headers: getHeaders() });
-      if (!res.ok) throw new Error("Error al cargar transacciones");
-      const data = await res.json();
+      const data = await api.get<{ transactions: Transaction[] }>(`/api/transactions?${params}`);
       setTransactions(data.transactions || []);
     } catch (err) {
       console.error("Fetch transactions error:", err);
     }
-  }, [getHeaders, searchQuery]);
+  }, [api, searchQuery]);
 
   // Fetch period-specific data (expenses, income, and summary)
   const fetchPeriodData = useCallback(async () => {
@@ -288,50 +136,27 @@ function App() {
       const { start, end } = selectedPeriod.getRange();
 
       const [expRes, incRes, sumRes, expTimeRes, incTimeRes] = await Promise.all([
-        fetch(`/api/expenses/by-category?start=${start}&end=${end}`, { headers: getHeaders() }),
-        fetch(`/api/income/by-category?start=${start}&end=${end}`, { headers: getHeaders() }),
-        fetch(`/api/summary?start=${start}&end=${end}`, { headers: getHeaders() }),
-        fetch(`/api/expenses/by-time?start=${start}&end=${end}&type=withdrawal`, { headers: getHeaders() }),
-        fetch(`/api/expenses/by-time?start=${start}&end=${end}&type=deposit`, { headers: getHeaders() }),
+        api.get<{ data: ExpenseData[] }>(`/api/expenses/by-category?start=${start}&end=${end}`),
+        api.get<{ data: ExpenseData[] }>(`/api/income/by-category?start=${start}&end=${end}`),
+        api.get<SummaryData>(`/api/summary?start=${start}&end=${end}`),
+        api.get<{ data: TimeSeriesData[]; categories: string[] }>(`/api/expenses/by-time?start=${start}&end=${end}&type=withdrawal`),
+        api.get<{ data: TimeSeriesData[]; categories: string[] }>(`/api/expenses/by-time?start=${start}&end=${end}&type=deposit`),
       ]);
 
-      if (expRes.ok) {
-        const expData = await expRes.json();
-        setExpenses(expData.data || []);
-      }
-
-      if (incRes.ok) {
-        const incData = await incRes.json();
-        setIncome(incData.data || []);
-      }
-
-      if (sumRes.ok) {
-        const sumData = await sumRes.json();
-        setSummary({
-          income: sumData.income || 0,
-          expenses: sumData.expenses || 0,
-          net: sumData.net || 0,
-        });
-      }
-
-      if (expTimeRes.ok) {
-        const expTimeData = await expTimeRes.json();
-        setExpenseTimeData(expTimeData.data || []);
-        setExpenseTimeCategories(expTimeData.categories || []);
-      }
-
-      if (incTimeRes.ok) {
-        const incTimeData = await incTimeRes.json();
-        setIncomeTimeData(incTimeData.data || []);
-        setIncomeTimeCategories(incTimeData.categories || []);
-      }
+      setExpenses(expRes.data || []);
+      setIncome(incRes.data || []);
+      setSummary({ income: sumRes.income || 0, expenses: sumRes.expenses || 0, net: sumRes.net || 0 });
+      setExpenseTimeData(expTimeRes.data || []);
+      setExpenseTimeCategories(expTimeRes.categories || []);
+      setIncomeTimeData(incTimeRes.data || []);
+      setIncomeTimeCategories(incTimeRes.categories || []);
     } catch (err) {
       console.error("Fetch period data error:", err);
     } finally {
       setSummaryLoading(false);
       setTimeDataLoading(false);
     }
-  }, [initData, selectedPeriod, getHeaders]);
+  }, [initData, selectedPeriod, api]);
 
   // Fetch transactions for a specific category (for drill-down)
   const fetchCategoryTransactions = useCallback(async (category: string, type: "expense" | "income") => {
@@ -342,21 +167,16 @@ function App() {
       const { start, end } = selectedPeriod.getRange();
       const txType = type === "expense" ? "withdrawal" : "deposit";
 
-      const res = await fetch(
+      const data = await api.get<{ data: CategoryTransactionData[] }>(
         `/api/transactions/by-category?category=${encodeURIComponent(category)}&type=${txType}&start=${start}&end=${end}`,
-        { headers: getHeaders() }
       );
-
-      if (res.ok) {
-        const data = await res.json();
-        setCategoryTransactions(data.data || []);
-      }
+      setCategoryTransactions(data.data || []);
     } catch (err) {
       console.error("Fetch category transactions error:", err);
     } finally {
       setCategoryTransactionsLoading(false);
     }
-  }, [initData, selectedPeriod, getHeaders]);
+  }, [initData, selectedPeriod, api]);
 
   // Handle category selection from chart
   const handleCategorySelect = useCallback((category: string | null, type: "expense" | "income") => {
@@ -479,21 +299,19 @@ function App() {
   }, [transactions, searchQuery, typeFilter, searchAllHistory, categoryFilter, tagFilter, dateFromFilter, dateToFilter]);
 
   // Calculate totals
-  const totalAssets = assets.reduce((sum, acc) => sum + acc.current_balance, 0);
-  const totalLiabilities = liabilities.reduce((sum, acc) => sum + acc.current_balance, 0);
-  const netWorth = totalAssets - Math.abs(totalLiabilities);
   const mainCurrency = assets[0]?.currency_code || "EUR";
+  const totalAssets = assets
+    .filter((account) => account.currency_code === mainCurrency)
+    .reduce((sum, account) => sum + account.current_balance, 0);
+  const totalLiabilities = liabilities
+    .filter((account) => account.currency_code === mainCurrency)
+    .reduce((sum, account) => sum + account.current_balance, 0);
+  const netWorth = totalAssets - Math.abs(totalLiabilities);
 
   // Handle transaction update
   const handleTransactionUpdate = async (id: string, updates: Partial<Transaction>) => {
     try {
-      const res = await fetch(`/api/transactions/${id}`, {
-        method: "PUT",
-        headers: getHeaders(),
-        body: JSON.stringify(updates),
-      });
-
-      if (!res.ok) throw new Error("Error al actualizar");
+      await api.put(`/api/transactions/${id}`, updates);
 
       // Refresh transactions
       await fetchTransactions();
@@ -515,13 +333,7 @@ function App() {
     date: string;
   }) => {
     try {
-      const res = await fetch("/api/transactions", {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify(expense),
-      });
-
-      if (!res.ok) throw new Error("Error al crear");
+      await api.post("/api/transactions", expense);
 
       // Refresh data
       await Promise.all([fetchTransactions(), fetchPeriodData()]);

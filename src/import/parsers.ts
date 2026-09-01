@@ -4,7 +4,13 @@ import type { BankId, ParsedTransaction } from "./types.js";
 // Parse DD/MM/YYYY to YYYY-MM-DD
 function parseDateDMY(dateStr: string): string {
   const [day, month, year] = dateStr.split("/");
-  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  if (!day || !month || !year) throw new Error("Invalid date");
+  const normalized = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  const parsed = new Date(`${normalized}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== normalized) {
+    throw new Error("Invalid date");
+  }
+  return normalized;
 }
 
 // Convert Excel serial date to YYYY-MM-DD
@@ -31,7 +37,7 @@ function parseEuropeanAmount(value: string): number {
 // Excel format: Sheet "Informe BBVA", data starts at row 5 (headers), row 6+ data
 // Columns B-J: F.Valor, Fecha, Concepto, Movimiento, Importe, Divisa, Disponible, Divisa, Observaciones
 export function parseBBVA(buffer: ArrayBuffer): ParsedTransaction[] {
-  const workbook = XLSX.read(buffer, { type: "array" });
+  const workbook = XLSX.read(buffer, { type: "array", sheetRows: 1001 });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
   // Convert to array of arrays, starting from row 1
@@ -78,7 +84,7 @@ export function parseBBVA(buffer: ArrayBuffer): ParsedTransaction[] {
     }
 
     // Parse amount
-    const amount = typeof importe === "number" ? importe : parseFloat(String(importe));
+    const amount = typeof importe === "number" ? importe : parseEuropeanAmount(String(importe));
     if (isNaN(amount)) continue;
 
     // Build description and notes
@@ -101,12 +107,13 @@ export function parseBBVA(buffer: ArrayBuffer): ParsedTransaction[] {
 // Columns A-F: Fecha, Fecha valor, Movimiento, Más datos, Importe, Saldo
 // Dates are Excel serial numbers!
 export function parseCaixaBank(buffer: ArrayBuffer): ParsedTransaction[] {
-  const workbook = XLSX.read(buffer, { type: "array" });
+  const workbook = XLSX.read(buffer, { type: "array", sheetRows: 1001 });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
   const data = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, {
     header: 1,
     defval: "",
+    range: "A1:J1001",
   });
 
   const transactions: ParsedTransaction[] = [];
@@ -186,7 +193,7 @@ function parseImaginBankAmount(value: string): number {
 // - New: "5.0", "-150.48" (standard decimal)
 // - Old: "-41,04EUR" (European format with EUR suffix)
 export function parseImaginBank(content: string): ParsedTransaction[] {
-  const lines = content.split(/\r?\n/);
+  const lines = content.split(/\r?\n/).slice(0, 1001);
   const transactions: ParsedTransaction[] = [];
 
   // Find header row (contains "Concepto;Fecha")
@@ -207,7 +214,7 @@ export function parseImaginBank(content: string): ParsedTransaction[] {
     const line = lines[i].trim();
     if (!line || line.startsWith(";")) continue; // Skip empty lines
 
-    const parts = line.split(";");
+    const parts = parseDelimitedLine(line);
     if (parts.length < 3) continue;
 
     // Columns: 0=Concepto, 1=Fecha, 2=Importe, 3=Saldo disponible
@@ -237,6 +244,32 @@ export function parseImaginBank(content: string): ParsedTransaction[] {
   }
 
   return transactions;
+}
+
+function parseDelimitedLine(line: string): string[] {
+  const values: string[] = [];
+  let value = "";
+  let quoted = false;
+
+  for (let index = 0; index < line.length; index++) {
+    const character = line[index];
+    if (character === '"') {
+      if (quoted && line[index + 1] === '"') {
+        value += '"';
+        index++;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (character === ";" && !quoted) {
+      values.push(value.trim());
+      value = "";
+    } else {
+      value += character;
+    }
+  }
+
+  values.push(value.trim());
+  return values;
 }
 
 // Main parser function - detects bank and parses accordingly

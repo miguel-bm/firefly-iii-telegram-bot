@@ -1,44 +1,10 @@
 import type { Context } from "hono";
 
 // Environment bindings for Cloudflare Worker
-export interface Env {
-    // Durable Objects
-    CHAT_AGENT: DurableObjectNamespace;
-
-    // KV
-    CATEGORY_CACHE: KVNamespace;
-    IMPORT_HASHES: KVNamespace;
-
-    // Static assets for web app
-    ASSETS: Fetcher;
-
-    // Environment variables
-    DEFAULT_CURRENCY: string;
-    DEFAULT_ACCOUNT_ID?: string;
-    BANK_ACCOUNT_ID_BBVA: string;
-    BANK_ACCOUNT_ID_CAIXABANK: string;
-    BANK_ACCOUNT_ID_IMAGINBANK: string;
-    BOT_LANGUAGE: "es" | "en";
-    BOT_TIMEZONE: string;
-    MAX_HISTORY_MESSAGES: string;
-
-    // Cron job settings
-    ENABLE_MONTHLY_REPORT: string;       // "true" or "false"
-    BANK_IMPORT_REMINDER_DAYS: string;   // Number of days
-
-    // Web App
-    DASHBOARD_WEBAPP_URL?: string;                 // Direct Mini App link (e.g., https://t.me/BotUsername/dashboard)
-
-    // Import settings
+export interface Env extends Cloudflare.Env {
+    // Optional secrets that are intentionally not declared in wrangler.toml.
     IMPORT_HASH_TTL_DAYS?: string;       // TTL for import hash cache (default: 365 days)
-
-    // Secrets
-    TELEGRAM_BOT_TOKEN: string;
-    TELEGRAM_WEBHOOK_SECRET: string;
-    TELEGRAM_ALLOWED_CHAT_ID: string;
-    FIREFLY_API_URL: string;
-    FIREFLY_API_TOKEN: string;
-    OPENAI_API_KEY: string;
+    TELEGRAM_ALLOWED_USER_IDS?: string;
 }
 
 export type HonoContext = Context<{ Bindings: Env }>;

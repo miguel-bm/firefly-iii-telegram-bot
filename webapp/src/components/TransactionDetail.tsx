@@ -12,7 +12,7 @@ import {
   Pencil,
   FolderOpen,
 } from "lucide-react";
-import type { Transaction } from "../App";
+import type { Transaction } from "../lib/dashboard";
 
 interface TransactionDetailProps {
   transaction: Transaction;

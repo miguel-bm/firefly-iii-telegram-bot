@@ -17,6 +17,7 @@ DEFAULT_ACCOUNT_ID = "151"
 BANK_ACCOUNT_ID_BBVA = "9"
 BANK_ACCOUNT_ID_CAIXABANK = "1"
 BANK_ACCOUNT_ID_IMAGINBANK = "65"
+MAX_IMPORT_FILE_BYTES = "5242880" # 5 MiB
 BOT_LANGUAGE = "es"           # "es" for Spanish, "en" for English
 BOT_TIMEZONE = "Europe/Madrid"
 MAX_HISTORY_MESSAGES = "20"   # Number of messages to keep in memory
@@ -33,6 +34,7 @@ BANK_IMPORT_REMINDER_DAYS = "10"         # Remind if no bank imports in N days
 # - TELEGRAM_BOT_TOKEN
 # - TELEGRAM_WEBHOOK_SECRET
 # - TELEGRAM_ALLOWED_CHAT_ID
+# - TELEGRAM_ALLOWED_USER_IDS (optional; defaults to allowed chat IDs)
 # - FIREFLY_API_URL (e.g., https://firefly.yourdomain.com)
 # - FIREFLY_API_TOKEN
 # - OPENAI_API_KEY

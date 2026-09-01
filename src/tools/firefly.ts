@@ -23,6 +23,7 @@ export class FireflyClient {
         const url = `${this.baseUrl}/api/v1${path}`;
         const response = await fetch(url, {
             ...options,
+            signal: options.signal ?? AbortSignal.timeout(15_000),
             headers: {
                 Authorization: `Bearer ${this.token}`,
                 "Content-Type": "application/json",
@@ -67,12 +68,28 @@ export class FireflyClient {
     ): Promise<FireflySearchResult[]> {
         interface SearchResponse {
             data: FireflySearchResult[];
+            meta?: { pagination?: { current_page: number; total_pages: number } };
         }
-        const params = new URLSearchParams({ query, limit: String(limit) });
-        const response = await this.request<SearchResponse>(
-            `/search/transactions?${params}`
-        );
-        return response.data;
+        const requested = Math.max(1, Math.min(limit, 2_000));
+        const pageSize = Math.min(requested, 100);
+        const transactions: FireflySearchResult[] = [];
+        let page = 1;
+
+        while (transactions.length < requested) {
+            const params = new URLSearchParams({
+                query,
+                limit: String(pageSize),
+                page: String(page),
+            });
+            const response = await this.request<SearchResponse>(`/search/transactions?${params}`);
+            transactions.push(...response.data);
+
+            const totalPages = response.meta?.pagination?.total_pages;
+            if (response.data.length < pageSize || (totalPages !== undefined && page >= totalPages)) break;
+            page++;
+        }
+
+        return transactions.slice(0, requested);
     }
 
     async createTransaction(
@@ -282,7 +299,7 @@ export class FireflyClient {
             source_id?: string;
             destination_id?: string;
             tags?: string[];
-            notes?: string;
+            notes?: string | null;
         }
     ): Promise<{ id: string; description: string }> {
         // Build the update payload - only include non-undefined fields
@@ -580,4 +597,3 @@ export async function getCachedAssetAccounts(
 
     return simplified;
 }
-

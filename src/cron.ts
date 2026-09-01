@@ -1,13 +1,15 @@
 import type { Env } from "./types.js";
 import { FireflyClient, getCachedAssetAccountIds } from "./tools/firefly.js";
+import { daysAgoInTimeZone, previousMonthRange, todayInTimeZone } from "./lib/dates.js";
+import { parseIdList } from "./webapp/auth.js";
 
 // Send a message via Telegram Bot API
 async function sendTelegramMessage(
     env: Env,
+    chatId: string,
     message: string,
     parseMode: "Markdown" | "HTML" = "Markdown"
 ): Promise<void> {
-    const chatId = env.TELEGRAM_ALLOWED_CHAT_ID;
     const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`;
 
     const response = await fetch(url, {
@@ -26,26 +28,10 @@ async function sendTelegramMessage(
     }
 }
 
-// Get the previous month's date range
-function getPreviousMonthRange(timezone: string): { start: string; end: string; monthName: string } {
-    const now = new Date();
-    // Get first day of current month
-    const firstOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    // Last day of previous month
-    const lastOfPrevMonth = new Date(firstOfCurrentMonth.getTime() - 1);
-    // First day of previous month
-    const firstOfPrevMonth = new Date(lastOfPrevMonth.getFullYear(), lastOfPrevMonth.getMonth(), 1);
-
-    const start = firstOfPrevMonth.toISOString().slice(0, 10);
-    const end = lastOfPrevMonth.toISOString().slice(0, 10);
-
-    // Get month name in the configured language
-    const monthName = firstOfPrevMonth.toLocaleDateString(timezone.includes("Madrid") ? "es-ES" : "en-US", {
-        month: "long",
-        year: "numeric",
-    });
-
-    return { start, end, monthName };
+async function sendToAllowedChats(env: Env, message: string): Promise<void> {
+    await Promise.all(parseIdList(env.TELEGRAM_ALLOWED_CHAT_ID).map((chatId) =>
+        sendTelegramMessage(env, chatId, message)
+    ));
 }
 
 // Handle monthly report cron (1st of month)
@@ -59,7 +45,10 @@ async function handleMonthlyReport(env: Env): Promise<void> {
     const firefly = new FireflyClient(env);
 
     // Get previous month date range
-    const { start, end, monthName } = getPreviousMonthRange(env.BOT_TIMEZONE);
+    const { start, end, monthName } = previousMonthRange(
+        env.BOT_TIMEZONE,
+        lang === "es" ? "es-ES" : "en-US",
+    );
 
     // Get asset account IDs for the report link
     const accountIds = await getCachedAssetAccountIds(env);
@@ -72,49 +61,41 @@ async function handleMonthlyReport(env: Env): Promise<void> {
         ? `📊 *Informe mensual de ${monthName}*\n\n🔗 [Ver informe completo](${reportUrl})`
         : `📊 *Monthly report for ${monthName}*\n\n🔗 [View full report](${reportUrl})`;
 
-    await sendTelegramMessage(env, message);
+    await sendToAllowedChats(env, message);
     console.log(`Sent monthly report for ${monthName}`);
 }
 
 // Handle daily bank import reminder
 async function handleBankImportReminder(env: Env): Promise<void> {
     const reminderDays = parseInt(env.BANK_IMPORT_REMINDER_DAYS ?? "10", 10);
+    if (!Number.isFinite(reminderDays) || reminderDays <= 0) return;
     const lang = env.BOT_LANGUAGE ?? "es";
     const firefly = new FireflyClient(env);
 
     // Calculate date range for checking
-    const now = new Date();
-    const startDate = new Date(now.getTime() - reminderDays * 24 * 60 * 60 * 1000);
-    const start = startDate.toISOString().slice(0, 10);
-    const end = now.toISOString().slice(0, 10);
+    const start = daysAgoInTimeZone(reminderDays, env.BOT_TIMEZONE);
+    const end = todayInTimeZone(env.BOT_TIMEZONE);
 
-    // Search for transactions in the date range that are NOT tagged with "telegram-bot"
-    // We search for all transactions then filter out the bot-created ones
-    const query = `date_after:${start} date_before:${end}`;
-    const transactions = await firefly.searchTransactions(query, 100);
-
-    // Filter out transactions created by this bot (tagged with "telegram-bot")
-    const externalTransactions = transactions.filter((tx) => {
-        const splits = tx.attributes.transactions;
-        // Check if any split has the telegram-bot tag
-        return !splits.some((split) => {
-            const tags = (split as { tags?: string[] }).tags ?? [];
-            return tags.includes("telegram-bot");
-        });
-    });
-
-    // If there are external transactions, no reminder needed
-    if (externalTransactions.length > 0) {
-        console.log(`Found ${externalTransactions.length} external transactions in last ${reminderDays} days, no reminder needed`);
+    const lastImport = await env.IMPORT_HASHES.get("last-bank-import");
+    const cutoff = Date.now() - reminderDays * 24 * 60 * 60 * 1000;
+    if (lastImport && new Date(lastImport).getTime() >= cutoff) {
+        console.log("Recent bank import recorded, no reminder needed");
         return;
     }
 
+    // Compatibility fallback for imports created before the timestamp was introduced.
+    const imports = await firefly.searchTransactions(
+        `tag_is:"bank-import" date_after:${start} date_before:${end}`,
+        1,
+    );
+    if (imports.length > 0) return;
+
     // No external transactions found - send reminder
     const message = lang === "es"
-        ? `⚠️ *Recordatorio: Importar extractos bancarios*\n\nNo he detectado transacciones importadas desde el banco en los últimos ${reminderDays} días.\n\n¿Has subido tus extractos con Data Importer?`
-        : `⚠️ *Reminder: Import bank statements*\n\nI haven't detected any bank-imported transactions in the last ${reminderDays} days.\n\nHave you uploaded your statements with Data Importer?`;
+        ? `⚠️ *Recordatorio: Importar extractos bancarios*\n\nNo he detectado una importación bancaria en los últimos ${reminderDays} días.\n\nPuedes subir el extracto directamente a este chat.`
+        : `⚠️ *Reminder: Import bank statements*\n\nI haven't detected a bank import in the last ${reminderDays} days.\n\nYou can upload the statement directly to this chat.`;
 
-    await sendTelegramMessage(env, message);
+    await sendToAllowedChats(env, message);
     console.log(`Sent bank import reminder (no external transactions in ${reminderDays} days)`);
 }
 
@@ -142,4 +123,3 @@ export async function handleScheduled(
         console.error("Cron job failed:", error);
     }
 }
-

@@ -16,7 +16,7 @@ import {
   batchCheckHashes,
 } from "./hash.js";
 
-function getBankAccountId(bank: BankId, env: Env): string {
+export function getBankAccountId(bank: BankId, env: Env): string {
   const accountIds: Record<BankId, string | undefined> = {
     bbva: env.BANK_ACCOUNT_ID_BBVA,
     caixabank: env.BANK_ACCOUNT_ID_CAIXABANK,
@@ -157,6 +157,10 @@ export async function importBankStatement(
         error: errorMessage,
       });
     }
+  }
+
+  if (created > 0 || duplicates > 0) {
+    await env.IMPORT_HASHES.put("last-bank-import", new Date().toISOString());
   }
 
   return {

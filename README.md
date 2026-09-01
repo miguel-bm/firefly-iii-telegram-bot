@@ -126,6 +126,7 @@ DEFAULT_ACCOUNT_ID = "1"              # Your default cash/checking account ID fr
 BANK_ACCOUNT_ID_BBVA = "9"             # Firefly asset account used for BBVA imports
 BANK_ACCOUNT_ID_CAIXABANK = "1"        # Firefly asset account used for CaixaBank imports
 BANK_ACCOUNT_ID_IMAGINBANK = "65"      # Firefly asset account used for ImaginBank imports
+MAX_IMPORT_FILE_BYTES = "5242880"       # Maximum bank statement size (5 MiB)
 BOT_LANGUAGE = "en"                   # "es" for Spanish, "en" for English
 BOT_TIMEZONE = "Europe/London"        # Your timezone
 MAX_HISTORY_MESSAGES = "20"           # Conversation memory limit
@@ -139,6 +140,7 @@ BANK_IMPORT_REMINDER_DAYS = "10"      # Days without imports before reminder (0 
 wrangler secret put TELEGRAM_BOT_TOKEN        # Bot token from BotFather
 wrangler secret put TELEGRAM_WEBHOOK_SECRET   # Random string (generate with: openssl rand -hex 32)
 wrangler secret put TELEGRAM_ALLOWED_CHAT_ID  # Your chat ID (comma-separated for multiple users)
+wrangler secret put TELEGRAM_ALLOWED_USER_IDS # Optional Mini App user IDs; defaults to allowed chat IDs
 wrangler secret put FIREFLY_API_URL           # e.g., https://firefly.yourdomain.com
 wrangler secret put FIREFLY_API_TOKEN         # Personal Access Token from Firefly III
 wrangler secret put OPENAI_API_KEY            # OpenAI API key
@@ -264,6 +266,7 @@ Simply upload an Excel (.xlsx, .xls) or CSV file from a supported bank. The bot 
 | `BANK_ACCOUNT_ID_BBVA` | Firefly asset account ID for BBVA imports | Required for BBVA imports |
 | `BANK_ACCOUNT_ID_CAIXABANK` | Firefly asset account ID for CaixaBank imports | Required for CaixaBank imports |
 | `BANK_ACCOUNT_ID_IMAGINBANK` | Firefly asset account ID for ImaginBank imports | Required for ImaginBank imports |
+| `MAX_IMPORT_FILE_BYTES` | Maximum uploaded bank statement size in bytes | `5242880` |
 | `BOT_LANGUAGE` | Bot language: `es` or `en` | `es` |
 | `BOT_TIMEZONE` | Timezone for date handling | `Europe/Madrid` |
 | `MAX_HISTORY_MESSAGES` | Messages to keep in memory | `20` |
@@ -278,6 +281,7 @@ Simply upload an Excel (.xlsx, .xls) or CSV file from a supported bank. The bot 
 | `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather |
 | `TELEGRAM_WEBHOOK_SECRET` | Random string for webhook verification |
 | `TELEGRAM_ALLOWED_CHAT_ID` | Allowed chat ID(s), comma-separated |
+| `TELEGRAM_ALLOWED_USER_IDS` | Optional allowed Mini App user ID(s), comma-separated |
 | `FIREFLY_API_URL` | Firefly III base URL |
 | `FIREFLY_API_TOKEN` | Firefly III Personal Access Token |
 | `OPENAI_API_KEY` | OpenAI API key |
@@ -360,7 +364,7 @@ The bot uses whatever currency code you set in `DEFAULT_CURRENCY`. Firefly III h
 - **Hono**: HTTP routing for webhook, API endpoints, and static files
 - **grammY**: Telegram bot framework
 - **Durable Objects**: Persistent conversation state with SQLite
-- **OpenAI**: GPT-4.1-mini for natural language, Whisper for voice
+- **OpenAI**: GPT-5-mini for natural language, GPT-4o mini transcription for voice
 - **QuickChart.io**: Chart image generation
 
 ## Limitations
