@@ -21,6 +21,7 @@ import { resolveImportTarget } from "./accounts.js";
 export interface ImportOptions {
   dryRun?: boolean; // If true, don't actually create transactions
   chatId: string; // Telegram chat ID for multi-user support
+  targetBank?: BankId; // Explicit account choice for ambiguous exports
 }
 
 // Import transactions from a bank statement file
@@ -30,7 +31,7 @@ export async function importBankStatement(
   env: Env,
   options: ImportOptions
 ): Promise<ImportResult> {
-  const { chatId, dryRun } = options;
+  const { chatId, dryRun, targetBank } = options;
 
   // Detect bank
   const detection = detectBank(buffer, fileName);
@@ -42,8 +43,6 @@ export async function importBankStatement(
 
   const { bank } = detection;
   const bankName = getBankName(bank);
-  const target = resolveImportTarget(bank, fileName, env);
-
   // Parse transactions
   let transactions: ParsedTransaction[];
   try {
@@ -53,6 +52,10 @@ export async function importBankStatement(
       `Failed to parse ${bankName} file: ${error instanceof Error ? error.message : "Unknown error"}`
     );
   }
+
+  // Resolve the destination only after parsing succeeds. Ambiguous files can
+  // then be held for an explicit Telegram account choice without creating data.
+  const target = resolveImportTarget(bank, fileName, env, targetBank);
 
   if (transactions.length === 0) {
     return {

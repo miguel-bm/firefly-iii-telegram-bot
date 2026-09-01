@@ -31,6 +31,15 @@ describe("bank account configuration", () => {
             .toThrow("Unknown or ambiguous");
     });
 
+    it("uses an explicit account choice for an unknown export suffix", () => {
+        expect(resolveImportTarget(
+            "caixabank",
+            "Movimientos_cuenta_3333333.csv",
+            env,
+            "imaginbank",
+        )).toMatchObject({ bank: "imaginbank", accountId: "65", accountName: "Imagin account" });
+    });
+
     it("shows the selected asset account in the import result", () => {
         const message = formatImportResult({
             bank: "caixabank",

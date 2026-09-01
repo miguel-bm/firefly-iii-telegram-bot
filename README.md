@@ -254,8 +254,9 @@ Simply upload an Excel (.xlsx, .xls) or CSV file from a supported bank. The bot 
 
 CaixaBank can export both the shared account and an Imagin account with the same file format.
 Keep the original `Movimientos_cuenta_<account>` filename: the configured suffix selects the
-correct Firefly account. Unknown suffixes are rejected before any transaction is created, and
-the bot includes the selected account name in every import result.
+correct Firefly account. If the suffix is missing or unknown, the bot parses the file without
+creating anything and asks the uploader to choose a configured account using Telegram buttons.
+The choice expires after 15 minutes and is accepted only from the original uploader.
 
 ## Commands
 

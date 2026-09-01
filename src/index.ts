@@ -6,12 +6,9 @@ import type { Env } from "./types.js";
 import { ChatAgentDO } from "./agent.js";
 import { processMessage, getMessages, type AgentProxy, type StreamContext } from "./bot.js";
 import { handleScheduled } from "./cron.js";
-import { importBankStatement, formatImportResult } from "./import/importer.js";
-import { ImportAccountError } from "./import/accounts.js";
 import { parseIdList } from "./webapp/auth.js";
-import { parsePositiveInt, ValidationError } from "./webapp/validation.js";
-import { assertStatementFile, readResponseWithLimit } from "./import/file.js";
 import { registerWebAppRoutes } from "./webapp/routes.js";
+import { registerImportHandlers } from "./import/telegram.js";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -138,60 +135,7 @@ app.post("/telegram/webhook", async (c) => {
         });
     });
 
-    // Handle document uploads (bank statements)
-    bot.on("message:document", async (ctx) => {
-        const document = ctx.message.document;
-        if (!document) return;
-
-        const fileName = document.file_name ?? "unknown";
-        const ext = fileName.toLowerCase().split(".").pop();
-
-        // Only handle supported file types
-        if (!["csv", "xls", "xlsx"].includes(ext ?? "")) {
-            return; // Let it fall through to regular message handler
-        }
-
-        try {
-            await ctx.replyWithChatAction("typing");
-            const maxBytes = parsePositiveInt(env.MAX_IMPORT_FILE_BYTES, 5 * 1024 * 1024, 20 * 1024 * 1024);
-            if (document.file_size && document.file_size > maxBytes) {
-                throw new ValidationError(`File exceeds the ${maxBytes}-byte upload limit`);
-            }
-
-            // Download the file from Telegram
-            const file = await ctx.api.getFile(document.file_id);
-            const fileUrl = `https://api.telegram.org/file/bot${env.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
-            const response = await fetch(fileUrl);
-
-            if (!response.ok) {
-                throw new Error(`Failed to download file: ${response.status}`);
-            }
-
-            const buffer = await readResponseWithLimit(response, maxBytes);
-            assertStatementFile(buffer, fileName);
-
-            // Import the bank statement
-            const chatId = String(ctx.chat?.id ?? "");
-            const result = await importBankStatement(buffer, fileName, env, { chatId });
-
-            // Format and send result
-            const message = formatImportResult(result, lang);
-            await ctx.reply(message);
-        } catch (error) {
-            console.error("Import error:", error);
-            if (error instanceof ImportAccountError) {
-                await ctx.reply(error.localized(lang));
-                return;
-            }
-            const errorMsg = error instanceof ValidationError
-                ? error.message
-                : (lang === "es" ? "No se pudo importar el archivo." : "The file could not be imported.");
-            const response = lang === "es"
-                ? `❌ Error importando archivo: ${errorMsg}`
-                : `❌ Error importing file: ${errorMsg}`;
-            await ctx.reply(response);
-        }
-    });
+    registerImportHandlers(bot, env, lang);
 
     // Handle all other messages through agent
     bot.on("message", async (ctx) => {

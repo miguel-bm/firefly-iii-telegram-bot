@@ -11,6 +11,7 @@ export class ImportAccountError extends Error {
   constructor(
     message: string,
     private readonly spanishMessage: string,
+    readonly canChooseAccount = false,
   ) {
     super(message);
     this.name = "ImportAccountError";
@@ -38,7 +39,7 @@ function configuredValue(value: string | undefined, variableName: string): strin
   return configured;
 }
 
-function targetForBank(bank: BankId, env: Env): ImportTarget {
+export function targetForBank(bank: BankId, env: Env): ImportTarget {
   const accountIds: Record<BankId, string | undefined> = {
     bbva: env.BANK_ACCOUNT_ID_BBVA,
     caixabank: env.BANK_ACCOUNT_ID_CAIXABANK,
@@ -61,7 +62,17 @@ export function getCaixaBankAccountSuffix(fileName: string): string | null {
   return fileName.match(/movimientos[_\s-]*cuenta[_\s-]*(\d+)/i)?.[1] ?? null;
 }
 
-export function resolveImportTarget(detectedBank: BankId, fileName: string, env: Env): ImportTarget {
+export function getConfiguredImportTargets(env: Env): ImportTarget[] {
+  return (["bbva", "caixabank", "imaginbank"] as const).map((bank) => targetForBank(bank, env));
+}
+
+export function resolveImportTarget(
+  detectedBank: BankId,
+  fileName: string,
+  env: Env,
+  selectedBank?: BankId,
+): ImportTarget {
+  if (selectedBank) return targetForBank(selectedBank, env);
   if (detectedBank !== "caixabank") return targetForBank(detectedBank, env);
 
   const fileSuffix = getCaixaBankAccountSuffix(fileName);
@@ -69,6 +80,7 @@ export function resolveImportTarget(detectedBank: BankId, fileName: string, env:
     throw new ImportAccountError(
       "Could not identify the CaixaBank account from the filename. Keep the exported Movimientos_cuenta_<account> filename.",
       "No pude identificar la cuenta. Conserva el nombre original Movimientos_cuenta_<cuenta> al subir el archivo.",
+      true,
     );
   }
 
@@ -88,6 +100,7 @@ export function resolveImportTarget(detectedBank: BankId, fileName: string, env:
     throw new ImportAccountError(
       `Unknown or ambiguous CaixaBank account suffix: ${fileSuffix}`,
       `La cuenta CaixaBank terminada en ${fileSuffix} no está configurada; no se ha importado nada.`,
+      true,
     );
   }
 
