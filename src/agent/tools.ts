@@ -131,7 +131,7 @@ export const TOOLS: FunctionTool[] = [
         type: "function",
         name: "firefly_query_transactions",
         description:
-            "Search, aggregate, and optionally chart transactions from Firefly III. Use for questions about spending, summaries, finding transactions, or generating charts. Text search is substring matching (not fuzzy). Set chart_type to get a visual chart instead of text.",
+            "Search, aggregate, and optionally chart transactions from Firefly III. Raw results include type and both account IDs/names. For a disputed transaction type or a counterpart/missing-deposit question, use search to find IDs, then call firefly_get_transaction before answering. Text search is substring matching (not fuzzy). Set chart_type to get a visual chart instead of text.",
         strict: true,
         parameters: {
             type: "object",
@@ -339,7 +339,7 @@ export const TOOLS: FunctionTool[] = [
         type: "function",
         name: "firefly_get_transaction",
         description:
-            "Get complete details of a single transaction by ID. Use before editing or deleting to show user what will be affected. Returns all fields including type, accounts, category, tags.",
+            "Get current transaction details, including authoritative type and both account IDs/names. Required before claiming a transaction has the wrong type or proposing conversion, even if conversation history says otherwise. A transfer already affects both accounts; it does not need a separate deposit.",
         strict: true,
         parameters: {
             type: "object",
@@ -357,7 +357,7 @@ export const TOOLS: FunctionTool[] = [
         type: "function",
         name: "firefly_review_uncategorized",
         description:
-            "Get a batch of uncategorized transactions for review. Returns transactions without categories, ordered by date descending. Use this to help user categorize transactions interactively.",
+            "Review uncategorized withdrawals by default. Transfers normally need no category and are not errors. Select deposit or transfer only when the user explicitly asks to review that type. Returns type and both accounts using the same fields as transaction search/details.",
         strict: true,
         parameters: {
             type: "object",
@@ -374,12 +374,17 @@ export const TOOLS: FunctionTool[] = [
                     type: ["string", "null"],
                     description: "Limit to specific account ID. Use null for all accounts.",
                 },
+                transaction_type: {
+                    type: ["string", "null"],
+                    enum: ["withdrawal", "deposit", "transfer", null],
+                    description: "Use null for expense review (withdrawals). Select deposit or transfer only if explicitly requested.",
+                },
                 limit: {
                     type: "number",
                     description: "Maximum transactions to return. Default 10, max 50.",
                 },
             },
-            required: ["date_from", "date_to", "account_id", "limit"],
+            required: ["date_from", "date_to", "account_id", "transaction_type", "limit"],
             additionalProperties: false,
         },
     },

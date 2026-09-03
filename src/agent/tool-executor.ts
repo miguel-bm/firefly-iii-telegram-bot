@@ -5,6 +5,7 @@ import { aggregateTransactions, formatAggregateResult, type GroupByOption } from
 import { buildChartConfig, generateQuickChartUrl } from "../tools/charts.js";
 import { transactionReference } from "../tools/transaction-reference.js";
 import { filterSplits } from "../query/filter-splits.js";
+import { transactionView } from "./transaction-view.js";
 
 export async function executeTool(
     toolCall: ResponseFunctionToolCall,
@@ -168,15 +169,7 @@ export async function executeTool(
             } else {
                 // Return raw transaction list with IDs for edit/delete
                 const txList = transactions.flatMap((t) =>
-                    t.attributes.transactions.map((split) => ({
-                        id: transactionReference(t, split),
-                        date: split.date,
-                        amount: split.amount,
-                        description: split.description,
-                        category: split.category_name,
-                        destination: split.destination_name,
-                        tags: split.tags,
-                    }))
+                    t.attributes.transactions.map(split => transactionView(transactionReference(t, split), split))
                 );
                 result = JSON.stringify(txList, null, 2);
             }
@@ -283,23 +276,12 @@ export async function executeTool(
         } else if (toolCall.name === "firefly_get_transaction") {
             // Get single transaction details
             const tx = await firefly.getTransaction(args.transaction_id);
-            result = JSON.stringify({
-                id: tx.id,
-                type: tx.type,
-                date: tx.date,
-                amount: tx.amount,
-                description: tx.description,
-                category: tx.category_name,
-                source_id: tx.source_id,
-                source_name: tx.source_name,
-                destination_id: tx.destination_id,
-                destination_name: tx.destination_name,
-                tags: tx.tags,
-                notes: tx.notes,
-            }, null, 2);
+            result = JSON.stringify(transactionView(tx.id, tx), null, 2);
         } else if (toolCall.name === "firefly_review_uncategorized") {
             // Get uncategorized transactions for review
-            const queryParts: string[] = ["has_no_category:true"];
+            const reviewType = args.transaction_type ?? "withdrawal";
+            if (!["withdrawal", "deposit", "transfer"].includes(reviewType)) throw new Error("Invalid review transaction type");
+            const queryParts: string[] = ["has_no_category:true", `type:${reviewType}`];
             if (args.date_from) queryParts.push(`date_after:${args.date_from}`);
             if (args.date_to) queryParts.push(`date_before:${args.date_to}`);
             if (args.account_id) queryParts.push(`account_id:${args.account_id}`);
@@ -310,19 +292,15 @@ export async function executeTool(
 
             // Format for review
             const txList = transactions.flatMap((t) =>
-                t.attributes.transactions.filter(split => !split.category_name).map((split) => ({
-                    id: transactionReference(t, split),
-                    date: split.date,
-                    amount: split.amount,
-                    description: split.description,
-                    type: split.type,
-                    source: split.source_name,
-                    destination: split.destination_name,
-                    tags: split.tags,
-                }))
+                t.attributes.transactions.filter(split => !split.category_name && split.type === reviewType
+                    && (!args.date_from || split.date.slice(0, 10) >= args.date_from)
+                    && (!args.date_to || split.date.slice(0, 10) <= args.date_to)
+                    && (!args.account_id || [split.source_id, split.destination_id].includes(args.account_id)))
+                    .map(split => transactionView(transactionReference(t, split), split))
             );
 
             result = JSON.stringify({
+                transaction_type: reviewType,
                 count: txList.length,
                 transactions: txList,
                 message: txList.length > 0
@@ -340,6 +318,7 @@ export async function executeTool(
 
             if (existingTx.type !== "withdrawal") {
                 result = JSON.stringify({
+                    transaction: transactionView(existingTx.id, existingTx),
                     error: lang === "es"
                         ? `Esta transacción ya es de tipo "${existingTx.type}", no se puede convertir.`
                         : `This transaction is already of type "${existingTx.type}", cannot convert.`,

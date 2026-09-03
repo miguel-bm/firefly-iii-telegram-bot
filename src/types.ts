@@ -111,6 +111,7 @@ export interface AgentResponse {
 
 // Detailed transaction info for single fetch
 export interface TransactionDetail {
+    currency_code?: string;
     transaction_journal_id?: string;
     id: string;
     type: "withdrawal" | "deposit" | "transfer";

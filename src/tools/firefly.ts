@@ -197,6 +197,7 @@ export class FireflyClient {
             id: transactionReference(group, tx),
             transaction_journal_id: tx.transaction_journal_id,
             type: tx.type as "withdrawal" | "deposit" | "transfer",
+            currency_code: tx.currency_code,
             date: tx.date,
             amount: tx.amount,
             description: tx.description,
