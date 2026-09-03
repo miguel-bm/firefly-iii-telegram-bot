@@ -1,4 +1,5 @@
-import type { BankId } from "./types.js";
+import type { BankId, ContributionMode } from "./types.js";
+import type { DateOrder } from "./parsers/csv-values.js";
 
 export const PENDING_IMPORT_TTL_SECONDS = 15 * 60;
 const KEY_PREFIX = "pending-import:";
@@ -9,9 +10,27 @@ export interface PendingImport {
   fileName: string;
   chatId: string;
   userId: string;
+  targetBank?: BankId;
+  dateOrder?: DateOrder;
+  contributionIndex?: number;
+  contributionChoices?: Record<number, ContributionMode>;
 }
 
-export type PendingImportAction = BankId | "cancel";
+export type PendingImportAction = BankId | DateOrder | ContributionMode | "cancel";
+
+export function applyImportChoice(pending: PendingImport, action: Exclude<PendingImportAction, "cancel">): PendingImport {
+  if (action === "household" || action === "regular") {
+    if (pending.contributionIndex === undefined) throw new Error("No contribution awaiting confirmation");
+    return { ...pending, contributionIndex: undefined,
+      contributionChoices: { ...pending.contributionChoices, [pending.contributionIndex]: action } };
+  }
+  return { ...pending, ...(action === "dmy" || action === "mdy" ? { dateOrder: action } : { targetBank: action }) };
+}
+
+interface ImportCoordinatorNamespace {
+  idFromName(name: string): DurableObjectId;
+  get(id: DurableObjectId): { fetch(request: Request): Promise<Response> };
+}
 
 function key(token: string): string {
   return `${KEY_PREFIX}${token}`;
@@ -22,36 +41,35 @@ function newToken(): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-export async function savePendingImport(kv: KVNamespace, pending: PendingImport): Promise<string> {
+export async function savePendingImport(
+  imports: ImportCoordinatorNamespace, pending: PendingImport,
+): Promise<string> {
   const token = newToken();
-  await kv.put(key(token), JSON.stringify(pending), { expirationTtl: PENDING_IMPORT_TTL_SECONDS });
+  const response = await imports.get(imports.idFromName("household")).fetch(new Request(`http://imports/${key(token)}`, {
+    method: "PUT", body: JSON.stringify(pending),
+  }));
+  if (!response.ok) throw new Error("Could not save pending import");
   return token;
-}
-
-export async function consumePendingImport(
-  kv: KVNamespace,
-  token: string,
-): Promise<PendingImport | null> {
-  const pending = await kv.get<PendingImport>(key(token), "json");
-  if (!pending) return null;
-  await kv.delete(key(token));
-  return pending;
-}
-
-export async function getPendingImport(kv: KVNamespace, token: string): Promise<PendingImport | null> {
-  return kv.get<PendingImport>(key(token), "json");
 }
 
 export function importCallbackData(token: string, action: PendingImportAction): string {
   return `${CALLBACK_PREFIX}:${token}:${action}`;
 }
 
-export function ownsPendingImport(pending: PendingImport, chatId: string, userId: string): boolean {
-  return pending.chatId === chatId && pending.userId === userId;
+export async function claimPendingImport(
+  imports: ImportCoordinatorNamespace, token: string, chatId: string, userId: string,
+): Promise<{ pending?: PendingImport; forbidden?: true }> {
+  const response = await imports.get(imports.idFromName("household")).fetch(new Request(`http://imports/${key(token)}`, {
+    method: "POST", body: JSON.stringify({ chatId, userId }),
+  }));
+  if (response.status === 404) return {};
+  if (response.status === 403) return { forbidden: true };
+  if (!response.ok) throw new Error("Could not claim pending import");
+  return { pending: await response.json() as PendingImport };
 }
 
 export function parseImportCallback(data: string): { token: string; action: PendingImportAction } | null {
-  const match = data.match(/^bank-import:([a-f0-9]{24}):(bbva|caixabank|imaginbank|cancel)$/);
+  const match = data.match(/^bank-import:([a-f0-9]{24}):(bbva|caixabank|imaginbank|dmy|mdy|household|regular|cancel)$/);
   if (!match) return null;
   return { token: match[1], action: match[2] as PendingImportAction };
 }

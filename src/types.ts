@@ -2,6 +2,7 @@ import type { Context } from "hono";
 
 // Environment bindings for Cloudflare Worker
 export interface Env extends Cloudflare.Env {
+    MORTGAGE_CONFIG?: string; // Private JSON configuration; see docs/mortgage.md.
     BANK_IMPORT_REMINDER_REPEAT_DAYS: string;
     // Optional secrets that are intentionally not declared in wrangler.toml.
     IMPORT_HASH_TTL_DAYS?: string;       // TTL for import hash cache (default: 365 days)
@@ -50,6 +51,10 @@ export interface FireflyTransaction {
 }
 
 export interface FireflyTransactionSplit {
+    transaction_journal_id?: string;
+    bill_id?: string | null;
+    external_id?: string | null;
+    notes?: string | null;
     type: string;
     date: string;
     amount: string;
@@ -78,6 +83,7 @@ export interface FireflyTag {
 export interface FireflySearchResult {
     id: string;
     attributes: {
+        group_title?: string | null;
         transactions: FireflyTransactionSplit[];
     };
 }
@@ -105,6 +111,7 @@ export interface AgentResponse {
 
 // Detailed transaction info for single fetch
 export interface TransactionDetail {
+    transaction_journal_id?: string;
     id: string;
     type: "withdrawal" | "deposit" | "transfer";
     date: string;

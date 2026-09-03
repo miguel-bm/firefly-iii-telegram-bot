@@ -1,11 +1,13 @@
-import OpenAI from "openai";
+import type { ResponseFunctionToolCall } from "openai/resources/responses/responses";
 import type { CreateTransactionInput, Env } from "../types.js";
 import { FireflyClient, getCachedAssetAccountIds, getCachedAssetAccounts } from "../tools/firefly.js";
 import { aggregateTransactions, formatAggregateResult, type GroupByOption } from "../query/aggregate.js";
 import { buildChartConfig, generateQuickChartUrl } from "../tools/charts.js";
+import { transactionReference } from "../tools/transaction-reference.js";
+import { filterSplits } from "../query/filter-splits.js";
 
 export async function executeTool(
-    toolCall: OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall,
+    toolCall: ResponseFunctionToolCall,
     firefly: FireflyClient,
     env: Env,
     lang: string,
@@ -15,9 +17,9 @@ export async function executeTool(
     let chartUrl: string | undefined;
 
     try {
-        const args = JSON.parse(toolCall.function.arguments);
+        const args = JSON.parse(toolCall.arguments);
 
-        if (toolCall.function.name === "firefly_create_transaction") {
+        if (toolCall.name === "firefly_create_transaction") {
             const input: CreateTransactionInput = {
                 type: args.type ?? "withdrawal",
                 date: args.date,
@@ -39,13 +41,13 @@ export async function executeTool(
                 amount: input.amount,
                 category: input.category_name,
             });
-        } else if (toolCall.function.name === "firefly_delete_transaction") {
+        } else if (toolCall.name === "firefly_delete_transaction") {
             await firefly.deleteTransaction(args.transaction_id);
             result = JSON.stringify({
                 success: true,
                 deleted_id: args.transaction_id,
             });
-        } else if (toolCall.function.name === "firefly_update_transaction") {
+        } else if (toolCall.name === "firefly_update_transaction") {
             // Build updates object with only non-null values
             const updates: {
                 type?: "withdrawal" | "deposit" | "transfer";
@@ -76,7 +78,7 @@ export async function executeTool(
                 description: updated.description,
                 updated_fields: Object.keys(updates),
             });
-        } else if (toolCall.function.name === "firefly_query_transactions") {
+        } else if (toolCall.name === "firefly_query_transactions") {
             // Build Firefly search query string
             const queryParts: string[] = [];
 
@@ -95,7 +97,19 @@ export async function executeTool(
 
             const query = queryParts.length > 0 ? queryParts.join(" ") : "*";
             const limit = args.limit ?? 100;
-            const transactions = await firefly.searchTransactions(query, limit);
+            const transactions = filterSplits(await firefly.searchTransactions(query, limit), split =>
+                (!args.category_name || split.category_name === args.category_name)
+                && (!args.has_no_category || !split.category_name)
+                && (!args.tag || Boolean(split.tags?.includes(args.tag)))
+                && (!args.transaction_type || split.type === args.transaction_type)
+                && (!args.date_from || split.date.slice(0, 10) >= args.date_from)
+                && (!args.date_to || split.date.slice(0, 10) <= args.date_to)
+                && (!args.account_id || [split.source_id, split.destination_id].includes(args.account_id))
+                && (!args.source_account_name || split.source_name === args.source_account_name)
+                && (!args.destination_account_name || split.destination_name === args.destination_account_name)
+                && (!args.text_contains || split.description.toLowerCase().includes(args.text_contains.toLowerCase()))
+                && (args.amount_min == null || Number(split.amount) >= args.amount_min)
+                && (args.amount_max == null || Number(split.amount) <= args.amount_max));
 
             const groupBy = args.aggregate_group_by as GroupByOption;
 
@@ -155,7 +169,7 @@ export async function executeTool(
                 // Return raw transaction list with IDs for edit/delete
                 const txList = transactions.flatMap((t) =>
                     t.attributes.transactions.map((split) => ({
-                        id: t.id, // Transaction ID for edit/delete operations
+                        id: transactionReference(t, split),
                         date: split.date,
                         amount: split.amount,
                         description: split.description,
@@ -166,7 +180,7 @@ export async function executeTool(
                 );
                 result = JSON.stringify(txList, null, 2);
             }
-        } else if (toolCall.function.name === "generate_chart") {
+        } else if (toolCall.name === "generate_chart") {
             // Manual chart generation from provided data points
             const chartType = args.chart_type as "pie" | "bar" | "line" | "doughnut";
             const title = args.title as string;
@@ -189,7 +203,7 @@ export async function executeTool(
                     data_points: dataPoints.length,
                 });
             }
-        } else if (toolCall.function.name === "firefly_report_link") {
+        } else if (toolCall.name === "firefly_report_link") {
             // Get asset account IDs for report link
             const accountIds = await getCachedAssetAccountIds(env);
 
@@ -206,7 +220,7 @@ export async function executeTool(
                 report_url: reportUrl,
                 report_type: args.report_type,
             });
-        } else if (toolCall.function.name === "firefly_get_accounts") {
+        } else if (toolCall.name === "firefly_get_accounts") {
             // Get accounts list
             const accountType = args.account_type as "asset" | "expense" | "revenue" | "liability" | undefined;
             const accounts = await firefly.getAccounts(accountType ?? undefined);
@@ -220,7 +234,7 @@ export async function executeTool(
             }));
 
             result = JSON.stringify(accountList, null, 2);
-        } else if (toolCall.function.name === "firefly_get_account_history") {
+        } else if (toolCall.name === "firefly_get_account_history") {
             // Get account balance history
             const period = args.period as "1D" | "1W" | "1M" | "1Y";
             const history = await firefly.getAccountHistory(
@@ -266,7 +280,7 @@ export async function executeTool(
                 const formatted = history.map((p) => `${p.date}: ${p.balance.toFixed(2)} ${currency}`);
                 result = formatted.join("\n");
             }
-        } else if (toolCall.function.name === "firefly_get_transaction") {
+        } else if (toolCall.name === "firefly_get_transaction") {
             // Get single transaction details
             const tx = await firefly.getTransaction(args.transaction_id);
             result = JSON.stringify({
@@ -283,7 +297,7 @@ export async function executeTool(
                 tags: tx.tags,
                 notes: tx.notes,
             }, null, 2);
-        } else if (toolCall.function.name === "firefly_review_uncategorized") {
+        } else if (toolCall.name === "firefly_review_uncategorized") {
             // Get uncategorized transactions for review
             const queryParts: string[] = ["has_no_category:true"];
             if (args.date_from) queryParts.push(`date_after:${args.date_from}`);
@@ -296,8 +310,8 @@ export async function executeTool(
 
             // Format for review
             const txList = transactions.flatMap((t) =>
-                t.attributes.transactions.map((split) => ({
-                    id: t.id,
+                t.attributes.transactions.filter(split => !split.category_name).map((split) => ({
+                    id: transactionReference(t, split),
                     date: split.date,
                     amount: split.amount,
                     description: split.description,
@@ -319,7 +333,7 @@ export async function executeTool(
                         ? "No hay transacciones sin categoría en el rango especificado."
                         : "No uncategorized transactions found in the specified range."),
             }, null, 2);
-        } else if (toolCall.function.name === "firefly_convert_to_transfer") {
+        } else if (toolCall.name === "firefly_convert_to_transfer") {
             // Convert expense to transfer
             // First get the existing transaction to find source account
             const existingTx = await firefly.getTransaction(args.transaction_id);
@@ -355,7 +369,7 @@ export async function executeTool(
                         : "Transaction converted to transfer.",
                 });
             }
-        } else if (toolCall.function.name === "firefly_bulk_categorize") {
+        } else if (toolCall.name === "firefly_bulk_categorize") {
             // Bulk categorize transactions
             const results: { id: string; success: boolean; error?: string }[] = [];
 

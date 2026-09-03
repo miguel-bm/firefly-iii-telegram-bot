@@ -6,6 +6,7 @@ import type {
     FireflyTag,
     TransactionDetail,
 } from "../types.js";
+import { parseTransactionReference, transactionReference } from "./transaction-reference.js";
 
 export class FireflyClient {
     private baseUrl: string;
@@ -37,7 +38,7 @@ export class FireflyClient {
             throw new Error(`Firefly API error ${response.status}: ${error}`);
         }
 
-        return response.json() as Promise<T>;
+        return response.status === 204 ? undefined as T : response.json() as Promise<T>;
     }
 
     async getCategories(): Promise<FireflyCategory[]> {
@@ -155,38 +156,46 @@ export class FireflyClient {
     }
 
     async deleteTransaction(id: string): Promise<void> {
-        await this.request(`/transactions/${id}`, {
+        const { groupId } = parseTransactionReference(id);
+        const group = await this.getTransactionGroup(groupId);
+        if (group.attributes.transactions.length !== 1) {
+            throw new Error("Split payment: deletion through the bot is disabled. Review the whole payment in Firefly.");
+        }
+        await this.getTransaction(id); // Also reject a stale/wrong journal reference.
+        await this.request(`/transactions/${groupId}`, {
             method: "DELETE",
         });
     }
 
+    async getTransactionGroup(id: string): Promise<FireflySearchResult> {
+        const { groupId } = parseTransactionReference(id);
+        return (await this.request<{ data: FireflySearchResult }>(`/transactions/${groupId}`)).data;
+    }
+
+    async getAccount(id: string): Promise<{ type: string; currency_code: string; interest: string; interest_period: string; active: boolean }> {
+        if (!/^\d+$/.test(id)) throw new Error("Invalid account ID");
+        return (await this.request<{ data: { attributes: { type: string; currency_code: string; interest: string; interest_period: string; active: boolean } } }>(`/accounts/${id}`)).data.attributes;
+    }
+
+    async createSplitWithdrawal(transactions: Record<string, unknown>[], title: string): Promise<FireflySearchResult> {
+        return (await this.request<{ data: FireflySearchResult }>("/transactions", {
+            method: "POST",
+            body: JSON.stringify({ transactions, group_title: title, apply_rules: false, fire_webhooks: false, error_if_duplicate_hash: true }),
+        })).data;
+    }
+
     async getTransaction(id: string): Promise<TransactionDetail> {
-        interface TransactionResponse {
-            data: {
-                id: string;
-                attributes: {
-                    transactions: Array<{
-                        type: string;
-                        date: string;
-                        amount: string;
-                        description: string;
-                        category_name?: string | null;
-                        source_id?: string;
-                        source_name?: string;
-                        destination_id?: string;
-                        destination_name?: string;
-                        tags?: string[];
-                        notes?: string | null;
-                    }>;
-                };
-            };
+        const { journalId } = parseTransactionReference(id);
+        const group = await this.getTransactionGroup(id);
+        if (!journalId && group.attributes.transactions.length > 1) {
+            throw new Error(`Split payment: choose a part: ${group.attributes.transactions.map(t => transactionReference(group, t)).join(", ")}`);
         }
-        const response = await this.request<TransactionResponse>(`/transactions/${id}`);
-        const tx = response.data.attributes.transactions[0];
+        const tx = journalId ? group.attributes.transactions.find(t => t.transaction_journal_id === journalId) : group.attributes.transactions[0];
         if (!tx) throw new Error(`Transaction ${id} not found`);
 
         return {
-            id: response.data.id,
+            id: transactionReference(group, tx),
+            transaction_journal_id: tx.transaction_journal_id,
             type: tx.type as "withdrawal" | "deposit" | "transfer",
             date: tx.date,
             amount: tx.amount,
@@ -215,23 +224,36 @@ export class FireflyClient {
             notes?: string | null;
         }
     ): Promise<{ id: string; description: string }> {
-        // Build the update payload - only include non-undefined fields
-        const transactionUpdate: Record<string, unknown> = {};
+        const { groupId } = parseTransactionReference(id);
+        const existing = await this.getTransaction(id);
+        // Forms can resubmit unchanged values. Only actual financial changes need protection.
+        const financialUpdate: Record<string, unknown> = {};
+        if (updates.type !== undefined && updates.type !== existing.type) financialUpdate.type = updates.type;
+        if (updates.date !== undefined && updates.date !== existing.date.slice(0, 10)) financialUpdate.date = updates.date;
+        if (updates.amount !== undefined && updates.amount !== Number(existing.amount)) financialUpdate.amount = String(updates.amount);
+        if (updates.source_id !== undefined && updates.source_id !== existing.source_id) financialUpdate.source_id = updates.source_id;
+        if (updates.destination_id !== undefined && updates.destination_id !== existing.destination_id) financialUpdate.destination_id = updates.destination_id;
+        if (existing.tags.some(tag => tag.startsWith("mortgage-")) && Object.keys(financialUpdate).length > 0) {
+            throw new Error("Mortgage allocation: change financial fields through a reconciled mortgage repair, not an individual split edit.");
+        }
+        const transactionUpdate: Record<string, unknown> = { transaction_journal_id: existing.transaction_journal_id, ...financialUpdate };
 
-        if (updates.type !== undefined) transactionUpdate.type = updates.type;
-        if (updates.date !== undefined) transactionUpdate.date = updates.date;
-        if (updates.amount !== undefined) transactionUpdate.amount = String(updates.amount);
         if (updates.description !== undefined) transactionUpdate.description = updates.description;
         if (updates.category_name !== undefined) transactionUpdate.category_name = updates.category_name;
-        if (updates.source_id !== undefined) transactionUpdate.source_id = updates.source_id;
-        if (updates.destination_id !== undefined) transactionUpdate.destination_id = updates.destination_id;
-        if (updates.tags !== undefined) transactionUpdate.tags = updates.tags;
+        if (updates.tags !== undefined) transactionUpdate.tags = [...new Set([...updates.tags, ...existing.tags.filter(tag => tag.startsWith("mortgage-"))])];
         if (updates.notes !== undefined) transactionUpdate.notes = updates.notes;
 
+        const group = await this.getTransactionGroup(groupId);
+        if (!existing.transaction_journal_id || !group.attributes.transactions.some(t => t.transaction_journal_id === existing.transaction_journal_id)) {
+            throw new Error("Transaction changed during edit; reload before retrying");
+        }
         const payload = {
-            apply_rules: true,
+            apply_rules: group.attributes.transactions.length === 1 && !existing.tags.some(t => t.startsWith("mortgage-")),
             fire_webhooks: true,
-            transactions: [transactionUpdate],
+            group_title: group.attributes.transactions.length > 1 ? group.attributes.group_title ?? existing.description : undefined,
+            // Firefly deletes omitted journals. ID-only entries explicitly preserve siblings.
+            transactions: group.attributes.transactions.map(t => t.transaction_journal_id === existing.transaction_journal_id
+                ? transactionUpdate : { transaction_journal_id: t.transaction_journal_id }),
         };
 
         interface UpdateResponse {
@@ -241,14 +263,14 @@ export class FireflyClient {
             };
         }
 
-        const response = await this.request<UpdateResponse>(`/transactions/${id}`, {
+        await this.request<UpdateResponse>(`/transactions/${groupId}`, {
             method: "PUT",
             body: JSON.stringify(payload),
         });
 
         return {
-            id: response.data.id,
-            description: response.data.attributes.transactions[0]?.description ?? "",
+            id: existing.id,
+            description: updates.description ?? existing.description,
         };
     }
 

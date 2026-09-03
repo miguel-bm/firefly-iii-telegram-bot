@@ -192,6 +192,7 @@ export default {
 
 // Export the ChatAgentDO Durable Object class
 export { ChatAgentDO };
+export { BankImportDO } from "./import/coordinator.js";
 
 // Legacy stub for migration - will be deleted in future migration
 export class ChatAgent implements DurableObject {

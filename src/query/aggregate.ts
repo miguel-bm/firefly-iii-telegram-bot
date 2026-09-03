@@ -30,10 +30,12 @@ export function aggregateTransactions(
 
     // Flatten all transaction splits
     const allSplits = transactions.flatMap((t) => t.attributes.transactions);
+    const groupOf = new Map(transactions.flatMap(t => t.attributes.transactions.map(s => [s, t.id] as const)));
 
     if (aggregate.group_by) {
         const grouped: Record<string, number> = {};
         const countByGroup: Record<string, number> = {};
+        const groupsSeen: Record<string, Set<string>> = {};
 
         for (const split of allSplits) {
             let groupKey: string;
@@ -68,7 +70,8 @@ export function aggregateTransactions(
                 grouped[groupKey] = (grouped[groupKey] ?? 0) + amount;
             }
             if (aggregate.kind === "count" || aggregate.kind === "avg") {
-                countByGroup[groupKey] = (countByGroup[groupKey] ?? 0) + 1;
+                (groupsSeen[groupKey] ??= new Set()).add(groupOf.get(split)!);
+                countByGroup[groupKey] = groupsSeen[groupKey].size;
             }
         }
 
@@ -76,6 +79,7 @@ export function aggregateTransactions(
         if (aggregate.group_by === "tag") {
             const tagGrouped: Record<string, number> = {};
             const tagCount: Record<string, number> = {};
+            const tagGroups: Record<string, Set<string>> = {};
 
             for (const tx of transactions) {
                 // Tags come from transaction attributes, accessing via search result
@@ -91,7 +95,8 @@ export function aggregateTransactions(
                             tagGrouped["Untagged"] = (tagGrouped["Untagged"] ?? 0) + amount;
                         }
                         if (aggregate.kind === "count" || aggregate.kind === "avg") {
-                            tagCount["Untagged"] = (tagCount["Untagged"] ?? 0) + 1;
+                            (tagGroups["Untagged"] ??= new Set()).add(tx.id);
+                            tagCount["Untagged"] = tagGroups["Untagged"].size;
                         }
                     } else {
                         for (const tag of tags) {
@@ -99,7 +104,8 @@ export function aggregateTransactions(
                                 tagGrouped[tag] = (tagGrouped[tag] ?? 0) + amount;
                             }
                             if (aggregate.kind === "count" || aggregate.kind === "avg") {
-                                tagCount[tag] = (tagCount[tag] ?? 0) + 1;
+                                (tagGroups[tag] ??= new Set()).add(tx.id);
+                                tagCount[tag] = tagGroups[tag].size;
                             }
                         }
                     }
@@ -112,7 +118,7 @@ export function aggregateTransactions(
                 }
             }
 
-            result.grouped = tagGrouped;
+            result.grouped = aggregate.kind === "count" ? tagCount : tagGrouped;
             return result;
         }
 
@@ -122,7 +128,7 @@ export function aggregateTransactions(
             }
         }
 
-        result.grouped = grouped;
+        result.grouped = aggregate.kind === "count" ? countByGroup : grouped;
     } else {
         // No grouping - return single aggregate
         const amounts = allSplits.map((s) => parseFloat(s.amount) || 0);
@@ -130,10 +136,11 @@ export function aggregateTransactions(
         if (aggregate.kind === "sum") {
             result.total = amounts.reduce((a, b) => a + b, 0);
         } else if (aggregate.kind === "count") {
-            result.count = allSplits.length;
+            result.count = transactions.filter(t => t.attributes.transactions.length > 0).length;
         } else if (aggregate.kind === "avg") {
             const sum = amounts.reduce((a, b) => a + b, 0);
-            result.average = amounts.length > 0 ? sum / amounts.length : 0;
+            const count = transactions.filter(t => t.attributes.transactions.length > 0).length;
+            result.average = count > 0 ? sum / count : 0;
         }
     }
 
@@ -176,5 +183,4 @@ export function formatAggregateResult(
 
     return lines.join("\n");
 }
-
 

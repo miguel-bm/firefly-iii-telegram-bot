@@ -1,4 +1,5 @@
 import { FireflyClient, getCachedAssetAccounts } from "../../tools/firefly.js";
+import { transactionReference } from "../../tools/transaction-reference.js";
 import {
   ValidationError,
   escapeFireflySearch,
@@ -31,8 +32,8 @@ export function registerTransactionRoutes(app: WebApp): void {
 
       const results = await client.searchTransactions(query.trim(), limit);
       const transactions = results.flatMap((result) =>
-        result.attributes.transactions.map((transaction) => ({
-          id: result.id,
+        result.attributes.transactions.filter(t => !uncategorized || !t.category_name).map((transaction) => ({
+          id: transactionReference(result, transaction),
           date: transaction.date,
           description: transaction.description,
           amount: parseFloat(transaction.amount),
@@ -62,8 +63,8 @@ export function registerTransactionRoutes(app: WebApp): void {
       const query = `category_is:"${escapeFireflySearch(category)}" type:${type} date_after:${start} date_before:${end}`;
       const results = await client.searchTransactions(query, 500);
       const transactions = results.flatMap((result) =>
-        result.attributes.transactions.map((transaction) => ({
-          id: result.id,
+        result.attributes.transactions.filter(t => t.category_name === category && t.type === type).map((transaction) => ({
+          id: transactionReference(result, transaction),
           date: transaction.date,
           amount: parseFloat(transaction.amount),
           description: transaction.description,
@@ -80,7 +81,7 @@ export function registerTransactionRoutes(app: WebApp): void {
   app.put("/api/transactions/:id", webAppAuth, async (c) => {
     try {
       const transactionId = c.req.param("id") ?? "";
-      if (!/^\d+$/.test(transactionId)) throw new ValidationError("Invalid transaction ID");
+      if (!/^\d+(?::\d+)?$/.test(transactionId)) throw new ValidationError("Invalid transaction ID");
       const updates = parseUpdateTransaction(await c.req.json());
       const result = await new FireflyClient(c.env).updateTransaction(transactionId, updates);
       return c.json({ success: true, transaction: result });

@@ -1,16 +1,10 @@
 import { Agent } from "agents";
 import OpenAI from "openai";
-import type {
-    Env,
-    ChatAgentState,
-    ChatMessage,
-    AgentResponse,
-    StreamEvent,
-} from "./types.js";
+import type { Env, ChatAgentState, ChatMessage, AgentResponse } from "./types.js";
 import { FireflyClient, getCachedCategories, getCachedTags, getCachedAssetAccounts } from "./tools/firefly.js";
-import { CHAT_MODEL, SYSTEM_PROMPTS, BUSY_MESSAGES, RESET_MESSAGES } from "./agent/config.js";
-import { TOOLS } from "./agent/tools.js";
+import { SYSTEM_PROMPTS, BUSY_MESSAGES, RESET_MESSAGES } from "./agent/config.js";
 import { executeTool } from "./agent/tool-executor.js";
+import { runResponseLoop, type TurnEvent } from "./agent/responses.js";
 
 export class ChatAgentDO extends Agent<Env, ChatAgentState> {
     initialState: ChatAgentState = {
@@ -23,358 +17,97 @@ export class ChatAgentDO extends Agent<Env, ChatAgentState> {
         isProcessing: false,
     };
 
-    // Handle HTTP requests to the agent
     async fetch(request: Request): Promise<Response> {
-        const url = new URL(request.url);
-        const action = url.pathname.replace("/", "");
-
+        const action = new URL(request.url).pathname.slice(1);
         try {
             const body = request.method === "POST"
                 ? await request.json() as { message?: string; userName?: string }
                 : {};
-
-            if (action === "checkBusy") {
-                const result = this.checkBusy();
-                return Response.json({ result });
-            }
-
-            if (action === "resetHistory") {
-                const result = this.resetHistory();
-                return Response.json({ result });
-            }
-
-            if (action === "runAgentTurnStream") {
-                const { readable, writable } = new TransformStream();
-                const writer = writable.getWriter();
-                const encoder = new TextEncoder();
-
-                const generator = this.runAgentTurnStream(body.message ?? "", body.userName);
-
-                (async () => {
-                    try {
-                        for await (const event of generator) {
-                            await writer.write(encoder.encode(JSON.stringify(event) + "\n"));
-                        }
-                    } catch (error) {
-                        const errorEvent: StreamEvent = {
-                            type: "error",
-                            message: error instanceof Error ? error.message : "Unknown error",
-                        };
-                        await writer.write(encoder.encode(JSON.stringify(errorEvent) + "\n"));
-                    } finally {
-                        await writer.close();
-                    }
-                })();
-
-                return new Response(readable, {
-                    headers: { "Content-Type": "application/x-ndjson" },
-                });
-            }
-
+            if (action === "checkBusy") return Response.json({ result: this.checkBusy() });
+            if (action === "resetHistory") return Response.json({ result: this.resetHistory() });
             if (action === "runAgentTurn") {
-                const result = await this.runAgentTurn(body.message ?? "", body.userName);
-                return Response.json({ result });
+                return Response.json({ result: await this.runAgentTurn(body.message ?? "", body.userName) });
             }
-
+            if (action === "runAgentTurnStream") {
+                const events = this.runAgentTurnStream(body.message ?? "", body.userName);
+                const encoder = new TextEncoder();
+                const stream = new ReadableStream({
+                    async pull(controller) {
+                        const { done, value } = await events.next();
+                        if (done) controller.close();
+                        else controller.enqueue(encoder.encode(JSON.stringify(value) + "\n"));
+                    },
+                    async cancel() { await events.return(undefined); },
+                });
+                return new Response(stream, { headers: { "Content-Type": "application/x-ndjson" } });
+            }
             return Response.json({ error: "Unknown action" }, { status: 404 });
         } catch (error) {
             console.error("Agent fetch error:", error);
-            return Response.json(
-                { error: error instanceof Error ? error.message : "Unknown error" },
-                { status: 500 }
-            );
+            return Response.json({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 });
         }
     }
 
-    // Check if busy and return error message if so
     checkBusy(): string | null {
-        if (this.state.isProcessing) {
-            const lang = this.env.BOT_LANGUAGE ?? "es";
-            return BUSY_MESSAGES[lang];
-        }
-        return null;
+        return this.state.isProcessing ? BUSY_MESSAGES[this.env.BOT_LANGUAGE ?? "es"] : null;
     }
 
-    // Reset conversation history
     resetHistory(): string {
-        this.setState({
-            ...this.state,
-            messageHistory: [],
-            isProcessing: false,
-        });
-        const lang = this.env.BOT_LANGUAGE ?? "es";
-        return RESET_MESSAGES[lang];
+        this.setState({ ...this.state, messageHistory: [], isProcessing: false });
+        return RESET_MESSAGES[this.env.BOT_LANGUAGE ?? "es"];
     }
 
     async runAgentTurn(message: string, userName?: string): Promise<AgentResponse> {
-        const env = this.env;
-        const lang = env.BOT_LANGUAGE ?? "es";
-        const timezone = env.BOT_TIMEZONE ?? "Europe/Madrid";
-        const maxHistory = parseInt(env.MAX_HISTORY_MESSAGES ?? "20", 10);
-
-        // Set processing flag
-        this.setState({ ...this.state, isProcessing: true });
-
-        // Track chart URL if generated
-        let chartUrl: string | undefined;
-
-        try {
-            const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
-            const firefly = new FireflyClient(env);
-
-            // Get categories, tags, and accounts for context
-            const [categories, tags, accounts] = await Promise.all([
-                getCachedCategories(env),
-                getCachedTags(env),
-                getCachedAssetAccounts(env),
-            ]);
-            const categoryNames = categories.map((c) => c.name);
-
-            const currency = this.state.defaultCurrency ?? env.DEFAULT_CURRENCY;
-
-            // Build system prompt
-            const systemPrompt = SYSTEM_PROMPTS[lang](categoryNames, tags, accounts, currency, timezone);
-
-            // Build messages with history
-            const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-                { role: "system", content: systemPrompt },
-            ];
-
-            // Add message history
-            for (const historyMsg of this.state.messageHistory) {
-                if (historyMsg.role === "user") {
-                    const prefix = historyMsg.userName ? `[${historyMsg.userName}]: ` : "";
-                    messages.push({ role: "user", content: prefix + historyMsg.content });
-                } else {
-                    messages.push({ role: "assistant", content: historyMsg.content });
-                }
-            }
-
-            // Add current message with user name
-            const userPrefix = userName ? `[${userName}]: ` : "";
-            messages.push({ role: "user", content: userPrefix + message });
-
-            // Agent loop - keep calling until no more tool calls
-            let iterations = 0;
-            const maxIterations = 10;
-            let finalResponse = "";
-
-            while (iterations < maxIterations) {
-                iterations++;
-
-                const response = await openai.chat.completions.create({
-                    model: CHAT_MODEL,
-                    messages,
-                    tools: TOOLS,
-                    tool_choice: "auto",
-                });
-
-                const choice = response.choices[0];
-                if (!choice?.message) {
-                    finalResponse = lang === "es"
-                        ? "No pude procesar esa solicitud."
-                        : "I couldn't process that request.";
-                    break;
-                }
-
-                const assistantMessage = choice.message;
-                messages.push(assistantMessage);
-
-                // If no tool calls, return the content
-                if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
-                    finalResponse = assistantMessage.content ?? (lang === "es" ? "Hecho." : "Done.");
-                    break;
-                }
-
-                // Process tool calls
-                for (const toolCall of assistantMessage.tool_calls) {
-                    if (toolCall.type !== "function") continue;
-                    const { result, chartUrl: newChartUrl } = await executeTool(
-                        toolCall, firefly, env, lang, currency
-                    );
-                    if (newChartUrl) chartUrl = newChartUrl;
-                    messages.push({
-                        role: "tool",
-                        tool_call_id: toolCall.id,
-                        content: result,
-                    });
-                }
-            }
-
-            if (!finalResponse) {
-                finalResponse = lang === "es"
-                    ? "Alcancé el número máximo de pasos. Por favor, intenta una solicitud más simple."
-                    : "I reached the maximum number of steps. Please try a simpler request.";
-            }
-
-            // Update message history
-            const userMsg: ChatMessage = { role: "user", content: message, userName, timestamp: Date.now() };
-            const assistantMsg: ChatMessage = { role: "assistant", content: finalResponse, timestamp: Date.now() };
-            const newHistory: ChatMessage[] = [
-                ...this.state.messageHistory,
-                userMsg,
-                assistantMsg,
-            ].slice(-maxHistory); // Keep only last N messages
-
-            this.setState({
-                ...this.state,
-                messageHistory: newHistory,
-                isProcessing: false,
-            });
-
-            return { text: finalResponse, chartUrl };
-        } catch (error) {
-            // Clear processing flag on error
-            this.setState({ ...this.state, isProcessing: false });
-            throw error;
+        for await (const event of this.runAgentTurnStream(message, userName)) {
+            if (event.type === "error") throw new Error(event.message);
+            if (event.type === "done") return { text: event.text, chartUrl: event.chartUrl };
         }
+        throw new Error("Agent turn ended without a response");
     }
 
-    async *runAgentTurnStream(message: string, userName?: string): AsyncGenerator<StreamEvent> {
+    async *runAgentTurnStream(message: string, userName?: string): AsyncGenerator<TurnEvent> {
         const env = this.env;
         const lang = env.BOT_LANGUAGE ?? "es";
-        const timezone = env.BOT_TIMEZONE ?? "Europe/Madrid";
-        const maxHistory = parseInt(env.MAX_HISTORY_MESSAGES ?? "20", 10);
-
+        let outcome: TurnEvent | undefined;
         this.setState({ ...this.state, isProcessing: true });
-
-        let chartUrl: string | undefined;
-        let finalResponse = "";
-
         try {
             const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
             const firefly = new FireflyClient(env);
-
             const [categories, tags, accounts] = await Promise.all([
-                getCachedCategories(env),
-                getCachedTags(env),
-                getCachedAssetAccounts(env),
+                getCachedCategories(env), getCachedTags(env), getCachedAssetAccounts(env),
             ]);
-            const categoryNames = categories.map((c) => c.name);
             const currency = this.state.defaultCurrency ?? env.DEFAULT_CURRENCY;
-            const systemPrompt = SYSTEM_PROMPTS[lang](categoryNames, tags, accounts, currency, timezone);
-
-            const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-                { role: "system", content: systemPrompt },
-            ];
-
-            for (const historyMsg of this.state.messageHistory) {
-                if (historyMsg.role === "user") {
-                    const prefix = historyMsg.userName ? `[${historyMsg.userName}]: ` : "";
-                    messages.push({ role: "user", content: prefix + historyMsg.content });
-                } else {
-                    messages.push({ role: "assistant", content: historyMsg.content });
-                }
-            }
-
-            const userPrefix = userName ? `[${userName}]: ` : "";
-            messages.push({ role: "user", content: userPrefix + message });
-
-            let iterations = 0;
-            const maxIterations = 10;
-
-            while (iterations < maxIterations) {
-                iterations++;
-
-                const stream = await openai.chat.completions.create({
-                    model: CHAT_MODEL,
-                    messages,
-                    tools: TOOLS,
-                    tool_choice: "auto",
-                    stream: true,
-                });
-
-                let fullContent = "";
-                const toolCallAccumulator = new Map<number, { id: string; name: string; arguments: string }>();
-
-                for await (const chunk of stream) {
-                    const choice = chunk.choices[0];
-                    if (!choice) continue;
-
-                    const delta = choice.delta;
-
-                    if (delta?.content) {
-                        fullContent += delta.content;
-                        yield { type: "text", content: delta.content };
-                    }
-
-                    if (delta?.tool_calls) {
-                        for (const tc of delta.tool_calls) {
-                            const existing = toolCallAccumulator.get(tc.index);
-                            if (!existing) {
-                                toolCallAccumulator.set(tc.index, {
-                                    id: tc.id ?? "",
-                                    name: tc.function?.name ?? "",
-                                    arguments: tc.function?.arguments ?? "",
-                                });
-                            } else {
-                                if (tc.id) existing.id = tc.id;
-                                if (tc.function?.name) existing.name += tc.function.name;
-                                if (tc.function?.arguments) existing.arguments += tc.function.arguments;
-                            }
-                        }
-                    }
-                }
-
-                // If we got tool calls, execute them and loop
-                if (toolCallAccumulator.size > 0) {
-                    const toolCalls = [...toolCallAccumulator.values()].map((tc) => ({
-                        id: tc.id,
-                        type: "function" as const,
-                        function: { name: tc.name, arguments: tc.arguments },
-                    }));
-
-                    messages.push({
-                        role: "assistant",
-                        content: fullContent || null,
-                        tool_calls: toolCalls,
-                    });
-
-                    for (const toolCall of toolCalls) {
-                        yield { type: "tool", name: toolCall.function.name };
-                        const { result, chartUrl: newChartUrl } = await executeTool(
-                            toolCall as OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall,
-                            firefly, env, lang, currency
-                        );
-                        if (newChartUrl) chartUrl = newChartUrl;
-                        messages.push({ role: "tool", tool_call_id: toolCall.id, content: result });
-                    }
-
-                    continue;
-                }
-
-                // No tool calls — this is the final response
-                finalResponse = fullContent || (lang === "es" ? "Hecho." : "Done.");
-                break;
-            }
-
-            if (!finalResponse) {
-                const msg = lang === "es"
-                    ? "Alcancé el número máximo de pasos. Por favor, intenta una solicitud más simple."
-                    : "I reached the maximum number of steps. Please try a simpler request.";
-                yield { type: "text", content: msg };
-                finalResponse = msg;
-            }
-
-            yield { type: "done", chartUrl };
-
-            // Update message history
             const userMsg: ChatMessage = { role: "user", content: message, userName, timestamp: Date.now() };
-            const assistantMsg: ChatMessage = { role: "assistant", content: finalResponse, timestamp: Date.now() };
-            const newHistory: ChatMessage[] = [
-                ...this.state.messageHistory,
-                userMsg,
-                assistantMsg,
-            ].slice(-maxHistory);
-
-            this.setState({
-                ...this.state,
-                messageHistory: newHistory,
-                isProcessing: false,
+            const events = runResponseLoop({
+                instructions: SYSTEM_PROMPTS[lang](
+                    categories.map(c => c.name), tags, accounts, currency, env.BOT_TIMEZONE ?? "Europe/Madrid",
+                ),
+                input: [...this.state.messageHistory, userMsg].map(msg => ({
+                    role: msg.role,
+                    content: (msg.role === "user" && msg.userName ? `[${msg.userName}]: ` : "") + msg.content,
+                })),
+                lang,
+                create: params => openai.responses.create(params),
+                execute: call => executeTool(call, firefly, env, lang, currency),
             });
+            for await (const event of events) {
+                if (event.type === "done") {
+                    const assistantMsg: ChatMessage = {
+                        role: "assistant", content: event.text, timestamp: Date.now(),
+                    };
+                    this.setState({
+                        ...this.state,
+                        messageHistory: [...this.state.messageHistory, userMsg, assistantMsg]
+                            .slice(-parseInt(env.MAX_HISTORY_MESSAGES ?? "20", 10)),
+                    });
+                    outcome = event;
+                } else yield event;
+            }
         } catch (error) {
+            outcome = { type: "error", message: error instanceof Error ? error.message : "Unknown error" };
+        } finally {
             this.setState({ ...this.state, isProcessing: false });
-            yield { type: "error", message: error instanceof Error ? error.message : "Unknown error" };
         }
+        if (outcome) yield outcome;
     }
 }

@@ -5,6 +5,7 @@ import type {
   ParsedTransaction,
   ImportResult,
   ImportError,
+  ContributionMode,
 } from "./types.js";
 import { detectBank, getBankName } from "./detector.js";
 import { parseStatementFile } from "./parsers.js";
@@ -18,11 +19,19 @@ import {
 } from "./hash.js";
 import { resolveImportTarget } from "./accounts.js";
 import { recordImportFreshness } from "./freshness.js";
+import type { DateOrder } from "./parsers/csv-values.js";
+import { ValidationError } from "../webapp/validation.js";
+import { contributionFor, importContribution, ContributionChoiceError } from "./transfers.js";
+import { mortgageConfig } from "./mortgage-plan.js";
+import { importMortgage } from "./mortgage.js";
+export { formatImportResult } from "./result.js";
 
 export interface ImportOptions {
   dryRun?: boolean; // If true, don't actually create transactions
   chatId: string; // Telegram chat ID for multi-user support
   targetBank?: BankId; // Explicit account choice for ambiguous exports
+  dateOrder?: DateOrder;
+  contributionChoices?: Record<number, ContributionMode>;
 }
 
 // Import transactions from a bank statement file
@@ -47,8 +56,9 @@ export async function importBankStatement(
   // Parse transactions
   let transactions: ParsedTransaction[];
   try {
-    transactions = parseStatementFile(buffer, fileName, bank);
+    transactions = parseStatementFile(buffer, fileName, bank, options.dateOrder);
   } catch (error) {
+    if (error instanceof ValidationError) throw error;
     throw new Error(
       `Failed to parse ${bankName} file: ${error instanceof Error ? error.message : "Unknown error"}`
     );
@@ -57,6 +67,15 @@ export async function importBankStatement(
   // Resolve the destination only after parsing succeeds. Ambiguous files can
   // then be held for an explicit Telegram account choice without creating data.
   const target = resolveImportTarget(bank, fileName, env, targetBank);
+  const mortgage = mortgageConfig(env.MORTGAGE_CONFIG);
+  const dates = transactions.map(tx => tx.date).sort();
+  const period = { dateFrom: dates[0], dateTo: dates.at(-1) };
+
+  const unconfirmed = target.bank === "imaginbank" ? transactions.findIndex((tx, index) =>
+    options.contributionChoices?.[index] === undefined && contributionFor(tx, target, env)) : -1;
+  if (unconfirmed !== -1) {
+    throw new ContributionChoiceError(unconfirmed, transactions[unconfirmed].date);
+  }
 
   if (transactions.length === 0) {
     if (!dryRun) await recordImportFreshness(env.IMPORT_HASHES, target, transactions);
@@ -64,6 +83,7 @@ export async function importBankStatement(
       bank,
       bankName,
       accountName: target.accountName,
+      ...period,
       totalParsed: 0,
       created: 0,
       duplicates: 0,
@@ -77,6 +97,7 @@ export async function importBankStatement(
       bank,
       bankName,
       accountName: target.accountName,
+      ...period,
       totalParsed: transactions.length,
       created: transactions.length,
       duplicates: 0,
@@ -118,9 +139,13 @@ export async function importBankStatement(
   const existingLegacyHashes = await batchCheckHashes(env.IMPORT_HASHES, legacyHashes);
 
   // Process transactions
-  for (const { tx, hash, legacyHash, index } of transactionHashes) {
+  for (const { tx, hash, legacyHash, index } of transactionHashes.sort((a, b) => a.tx.date.localeCompare(b.tx.date))) {
+    const contribution = options.contributionChoices?.[index] === "regular" ? null : contributionFor(tx, target, env);
+    const isMortgage = mortgage && target.accountId === mortgage.sourceId && tx.description === mortgage.statementDescription;
+    const futureMortgage = isMortgage && tx.date > mortgage.anchorDate;
     // Check if this transaction was already imported (hash exists in KV)
-    if (existingHashes.has(hash) || (legacyHash && existingLegacyHashes.has(legacyHash))) {
+    // Contributions must also check Firefly: older rules may have deleted the only side.
+    if (!contribution && !futureMortgage && (existingHashes.has(hash) || (legacyHash && existingLegacyHashes.has(legacyHash)))) {
       if (!existingHashes.has(hash)) {
         await storeHash(
           env.IMPORT_HASHES,
@@ -134,6 +159,22 @@ export async function importBankStatement(
     }
 
     try {
+      if (isMortgage) {
+        const added = await importMortgage(tx, mortgage, firefly);
+        if (added) created++; else duplicates++;
+        await storeHash(env.IMPORT_HASHES, hash,
+          createHashData(chatId, target.bank, target.accountId, tx.date, tx.amount, tx.description), hashTTL);
+        existingHashes.add(hash);
+        continue;
+      }
+      if (contribution) {
+        const added = await importContribution(tx, contribution, firefly, env);
+        if (added) created++; else duplicates++;
+        await storeHash(env.IMPORT_HASHES, hash,
+          createHashData(chatId, target.bank, target.accountId, tx.date, tx.amount, tx.description), hashTTL);
+        existingHashes.add(hash);
+        continue;
+      }
       // Determine transaction type based on amount sign
       const isWithdrawal = tx.amount < 0;
       const type = isWithdrawal ? "withdrawal" : "deposit";
@@ -188,63 +229,10 @@ export async function importBankStatement(
     bank,
     bankName,
     accountName: target.accountName,
+    ...period,
     totalParsed: transactions.length,
     created,
     duplicates,
     errors,
   };
-}
-
-// Format import result as a user-friendly message
-export function formatImportResult(result: ImportResult, lang: "es" | "en"): string {
-  const messages = {
-    es: {
-      title: `📥 Importación de ${result.bankName} → ${result.accountName}`,
-      parsed: `Transacciones encontradas: ${result.totalParsed}`,
-      created: `✅ Creadas: ${result.created}`,
-      duplicates: `⏭️ Duplicadas (omitidas): ${result.duplicates}`,
-      errors: `❌ Errores: ${result.errors.length}`,
-      errorDetails: "Detalles de errores:",
-      noTransactions: "No se encontraron transacciones en el archivo.",
-    },
-    en: {
-      title: `📥 ${result.bankName} import → ${result.accountName}`,
-      parsed: `Transactions found: ${result.totalParsed}`,
-      created: `✅ Created: ${result.created}`,
-      duplicates: `⏭️ Duplicates (skipped): ${result.duplicates}`,
-      errors: `❌ Errors: ${result.errors.length}`,
-      errorDetails: "Error details:",
-      noTransactions: "No transactions found in the file.",
-    },
-  };
-
-  const msg = messages[lang] ?? messages.es;
-
-  if (result.totalParsed === 0) {
-    return `${msg.title}\n\n${msg.noTransactions}`;
-  }
-
-  const lines = [
-    msg.title,
-    "",
-    msg.parsed,
-    msg.created,
-    msg.duplicates,
-  ];
-
-  if (result.errors.length > 0) {
-    lines.push(msg.errors);
-    lines.push("");
-    lines.push(msg.errorDetails);
-    // Show first 5 errors max
-    const errorsToShow = result.errors.slice(0, 5);
-    for (const err of errorsToShow) {
-      lines.push(`• Row ${err.row}: ${err.description.substring(0, 30)}... - ${err.error}`);
-    }
-    if (result.errors.length > 5) {
-      lines.push(`... and ${result.errors.length - 5} more errors`);
-    }
-  }
-
-  return lines.join("\n");
 }

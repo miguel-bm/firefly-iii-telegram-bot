@@ -22,7 +22,9 @@ A personal Telegram bot for tracking expenses and querying your finances using [
 
 ### Bank Statement Import
 - **Auto-detection**: Upload Excel/CSV files and the bot detects your bank automatically
-- **Duplicate prevention**: SHA-256 hashing prevents re-importing the same transactions
+- **Duplicate prevention**: Account-aware hashes and a serialized import queue prevent repeated uploads
+- **CSV date safety**: Detects day-first/month-first dates per file; asks before importing ambiguous dates
+- **Household contributions**: Records the monthly €850 contributions once as transfers, from either statement side
 - **Supported banks**: BBVA, CaixaBank, ImaginBank (see [Adding Banks](#adding-new-bank-parsers))
 
 ### Web Dashboard (Telegram Mini App)
@@ -50,8 +52,9 @@ Deploying this bot creates the following Cloudflare resources:
 |----------|---------|
 | **Worker** | Main application runtime |
 | **Durable Object** | Conversation state per chat (SQLite-backed) |
+| **BANK_IMPORTS Durable Object** | Household import queue, deduplication ledger and one-time pending choices |
 | **KV Namespace** (CATEGORY_CACHE) | Cached Firefly III categories (6h TTL) |
-| **KV Namespace** (IMPORT_HASHES) | Import deduplication hashes (1 year TTL) |
+| **KV Namespace** (IMPORT_HASHES) | Legacy/hash mirror (1 year TTL) and upload freshness |
 | **Cron Triggers** | Monthly reports and import reminders |
 
 ## Setup
@@ -257,7 +260,25 @@ CaixaBank can export both the shared account and an Imagin account with the same
 Keep the original `Movimientos_cuenta_<account>` filename: the configured suffix selects the
 correct Firefly account. If the suffix is missing or unknown, the bot parses the file without
 creating anything and asks the uploader to choose a configured account using Telegram buttons.
-The choice expires after 15 minutes and is accepted only from the original uploader.
+The choice expires after 15 minutes and is accepted only from the original uploader
+in the original chat. Choices are claimed atomically, so repeated or simultaneous
+clicks cannot start two imports. Expired file references are removed automatically.
+
+CSV dates are interpreted per file, not per bank: both `DD/MM/YYYY` and `MM/DD/YYYY`
+are supported. If the dates fit both formats, Telegram asks which one to use before
+anything is imported. Invalid/conflicting dates reject the file; the result shows its date range.
+
+The two €850 household contributions are reconciled by account pair, amount and a
+maximum three-day booking-date difference, plus the managed transfer's description
+and `household-contribution` tag. Unrelated same-value transfers do not count as matches.
+Imagin's generic outgoing description requires a Yes/No Telegram confirmation for
+each candidate, showing its date and row. All choices are collected before any writes;
+No imports that row normally. Explicit incoming/BBVA descriptions remain automatic.
+Either statement side can create the transfer; the other side matches it without
+adding another transaction. Multiple existing matches
+require review. Keep Firefly's **Eliminar contrapartida - Aporte Miguel/María** rules
+disabled: deleting receiving-side entries unconditionally can lose the only imported record.
+This reconciliation applies to uploads through this bot, not other import tools.
 
 ## Commands
 
@@ -407,9 +428,10 @@ The bot uses whatever currency code you set in `DEFAULT_CURRENCY`. Firefly III h
 - Ensure `DEFAULT_ACCOUNT_ID` exists in your Firefly III instance
 
 ### Import duplicates not detected
-- Duplicate detection uses SHA-256 hashes stored in KV
-- Hashes expire after `IMPORT_HASH_TTL_DAYS` (default 365 days)
+- New imports run through one Durable Object, which retains their hashes across restarts
+- The KV mirror/legacy hashes expire after `IMPORT_HASH_TTL_DAYS` (default 365 days)
 - Editing transactions in Firefly III doesn't affect duplicate detection
+- Historical repairs must reconcile the affected hashes too; do not clear the entire namespace
 
 ### Web dashboard shows "Unauthorized"
 - The dashboard validates Telegram's `initData` signature

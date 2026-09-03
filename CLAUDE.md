@@ -11,7 +11,7 @@ Telegram bot for [Firefly III](https://www.firefly-iii.org/) personal finance tr
 - **Runtime**: Cloudflare Workers
 - **Bot**: grammY (Telegram) + Hono (HTTP) + @grammyjs/stream (response streaming)
 - **State**: Cloudflare Durable Objects (Agents SDK)
-- **LLM**: OpenAI GPT-5-mini (function calling, streaming)
+- **LLM**: OpenAI GPT-5.6 Luna (Responses API, medium reasoning, function calling)
 - **Package Manager**: pnpm
 
 ## Key Commands
@@ -32,7 +32,7 @@ Telegram → Hono webhook → grammY bot → Durable Object Agent → Firefly II
 
 ### Response Streaming
 
-LLM responses are streamed to users in real-time using Telegram's `sendMessageDraft` (Bot API 9.5) via `@grammyjs/stream`. The DO streams NDJSON events (`tool`, `text`, `done`, `error`) over HTTP. During tool execution, ephemeral status messages (e.g., "Consultando transacciones...") appear as drafts and get replaced when the actual text response starts streaming. The non-streaming `runAgentTurn()` path is preserved for cron jobs.
+Private chats receive drafts via `@grammyjs/stream`; group chats receive the final reply. Both use the shared Responses loop in `src/agent/responses.ts`. The DO streams NDJSON events (`tool`, `text`, `done`, `error`) over HTTP. See [docs/agent.md](docs/agent.md) for reasoning replay, history, and the opt-in live API test.
 
 ## File Structure
 
@@ -40,7 +40,8 @@ LLM responses are streamed to users in real-time using Telegram's `sendMessageDr
 src/
 ├── index.ts          # Entry: Hono routes, webhook, document handler, cron
 ├── bot.ts            # grammY setup, message processing
-├── agent.ts          # ChatAgentDO: OpenAI agent with 8 tools
+├── agent.ts          # ChatAgentDO: transport and conversation state
+├── agent/            # Shared Responses loop, tool schemas/executor, prompts
 ├── types.ts          # TypeScript interfaces
 ├── cron.ts           # Scheduled jobs (monthly report, import reminder)
 ├── tools/
@@ -57,7 +58,7 @@ src/
     └── importer.ts   # Import orchestration
 ```
 
-## Agent Tools (src/agent.ts)
+## Agent Tools (src/agent/tools.ts)
 
 | Tool | Purpose |
 |------|---------|

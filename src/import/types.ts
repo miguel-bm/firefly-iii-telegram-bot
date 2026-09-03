@@ -1,5 +1,6 @@
 // Bank identifiers
 export type BankId = "bbva" | "caixabank" | "imaginbank";
+export type ContributionMode = "household" | "regular";
 
 // Parsed transaction from bank statement
 export interface ParsedTransaction {
@@ -14,6 +15,8 @@ export interface ImportResult {
   bank: BankId;
   bankName: string;
   accountName: string;
+  dateFrom?: string;
+  dateTo?: string;
   totalParsed: number;
   created: number;
   duplicates: number;

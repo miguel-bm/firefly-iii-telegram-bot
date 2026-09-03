@@ -51,6 +51,10 @@ BANK_IMPORT_REMINDER_REPEAT_DAYS = "3"  # Repeat a stale-account reminder at mos
 name = "CHAT_AGENT"
 class_name = "ChatAgentDO"
 
+[[durable_objects.bindings]]
+name = "BANK_IMPORTS"
+class_name = "BankImportDO"
+
 [[migrations]]
 tag = "v1"
 new_classes = ["ChatAgent"]
@@ -58,6 +62,10 @@ new_classes = ["ChatAgent"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["ChatAgentDO"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["BankImportDO"]
 
 # KV namespace for category cache
 [[kv_namespaces]]
